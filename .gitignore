@@ -1,0 +1,10 @@
+build/
+
+game
+game.exe
+game.dSYM
+
+earshot
+earshot.exe
+
+odin-raylib
