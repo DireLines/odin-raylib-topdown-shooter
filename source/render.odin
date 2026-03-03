@@ -164,25 +164,12 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		cur_string_cstr := strings.clone_to_cstring(obj.current_string, context.temp_allocator)
 		current_string_dims := rl.MeasureTextEx(font, cur_string_cstr, font_size, 0)
 		total_dims := current_string_dims
-		if .display_full_word in obj.word_properties {
-			full_word_remainder_cstr := strings.clone_to_cstring(
-				obj.target_word[len(obj.current_string):],
-				context.temp_allocator,
-			)
-			full_word_remainder_dims := rl.MeasureTextEx(
-				font,
-				full_word_remainder_cstr,
-				font_size,
-				0,
-			)
-			total_dims.x += full_word_remainder_dims.x
-		}
 		word_start_pos := mat_vec_mul(final_transform.transform, obj.pivot)
 		if !final_transform.screen_space {
 			word_start_pos = world_to_screen(word_start_pos, cv)
 		}
 		word_start_pos -= vec2f32_to_vec2(total_dims) / 2
-		if .display_current_string in obj.word_properties {
+		if obj.display_current_string {
 			rl.DrawTextEx(
 				font,
 				cur_string_cstr,
@@ -190,20 +177,6 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 				font_size,
 				0,
 				obj.text_color.? or_else rl.GREEN,
-			)
-		}
-		if .display_full_word in obj.word_properties {
-			full_word_remainder_cstr := strings.clone_to_cstring(
-				obj.target_word[len(obj.current_string):],
-				context.temp_allocator,
-			)
-			rl.DrawTextEx(
-				font,
-				full_word_remainder_cstr,
-				vec2_to_vec2f32(word_start_pos) + {current_string_dims.x, 0},
-				DEFAULT_FONT_SIZE,
-				0,
-				rl.WHITE,
 			)
 		}
 	}

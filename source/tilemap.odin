@@ -6,10 +6,6 @@ import maps "mapgen"
 import rl "vendor:raylib"
 
 TilemapTileId :: distinct [2]int //TODO: TileId name is in use by atlas.odin, investigate the intended way to generate tilemaps there
-TileType :: enum {
-	None,
-	Wall,
-}
 SpawnType :: enum {
 	None,
 	Player,
@@ -49,24 +45,6 @@ TileTypeInfo :: struct {
 	using render_info: RenderInfo,
 	wall_render_info:  Maybe(RenderInfo),
 	random_rotation:   bool,
-}
-TILE_PROPERTIES := [TileType]TileTypeInfo {
-	.None = {
-		texture = atlas_textures[.Cavefloor],
-		render_layer = uint(RenderLayer.Floor),
-		random_rotation = true,
-	},
-	.Wall = {
-		collision = {layer = .Wall, resolve = true, trigger_events = true},
-		texture = atlas_textures[.Rock],
-		// shader = .SolidColor,
-		render_layer = uint(RenderLayer.Ceiling),
-		wall_render_info = RenderInfo {
-			texture      = atlas_textures[.Darkrock],
-			// shader = .SolidColor,
-			render_layer = uint(RenderLayer.Wall),
-		},
-	},
 }
 
 get_tilemap_chunk :: proc(id: ChunkId) -> ^TilemapChunk {
