@@ -2,6 +2,8 @@
 package game_main
 
 import "core:fmt"
+import "core:math/linalg"
+import "core:math/rand"
 import hm "handle_map_static"
 import maps "mapgen"
 import rl "vendor:raylib"
@@ -14,7 +16,14 @@ MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
 BEE_YELLOW :: rl.Color{246, 208, 58, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
+//speeds in world units per second
+PLAYER_MAX_SPEED :: 100
 PLAYER_LINEAR_DRAG :: 5.0
+PLAYER_BULLET_SPEED :: 1200
+REFLECTED_BULLET_SPEED :: 500
+BULLET_KNOCKBACK_STRENGTH :: 10
+ENEMY_LINEAR_DRAG :: 5.0
+ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
 
 //object tags
 //these are mostly game-specific boolean tags on objects
@@ -31,6 +40,18 @@ ObjectTag :: enum {
 	Enemy,
 }
 
+
+//types needed in variants
+AliveDeadState :: enum {
+	Alive,
+	Dead,
+}
+EnemyState :: enum {
+	Alive_Inactive,
+	Alive_Active,
+	Dead,
+}
+
 //object variants
 //in contrast to tags, each object has exactly one variant
 //GameObject has a field called `variant` which is this GameObjectVariant union type
@@ -39,13 +60,16 @@ ObjectTag :: enum {
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
 DefaultVariant :: distinct struct{}
-AliveDeadState :: enum {
-	Alive,
-	Dead,
-}
 Player :: struct {
 	health: int,
 	state:  AliveDeadState,
+}
+Enemy :: struct {
+	spawn_point:    vec2,
+	state:          EnemyState,
+	type:           EnemyType,
+	pathfind_index: uint,
+	path:           TilePath,
 }
 UIButton :: struct {
 	min_scale, max_scale: vec2,
@@ -54,6 +78,7 @@ UIButton :: struct {
 GameObjectVariant :: union {
 	DefaultVariant,
 	Player,
+	Enemy,
 	UIButton,
 }
 GameSpecificProps :: struct {
@@ -128,7 +153,7 @@ TileType :: enum {
 //properties of each type of tile
 TILE_PROPERTIES := [TileType]TileTypeInfo {
 	.None = {
-		texture = atlas_textures[.None],
+		texture = atlas_textures[.Rock],
 		render_layer = uint(RenderLayer.Floor),
 		random_rotation = true,
 	},
@@ -239,6 +264,47 @@ main_menu_start :: proc() {
 		GameObject{associated_objects = {"main_menu" = main_menu_objects}},
 	)
 }
+
+main_menu_update :: proc(dt: f64) {
+	timer := timer()
+	handle_ui_buttons()
+	timer->time("handle buttons")
+	cam.position += {30, 40} * dt
+	if game.render_counter % 300 == 0 {
+		cam.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
+	}
+}
+
+handle_ui_buttons :: proc() {
+	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
+	it := hm.make_iter(&game.objects)
+	for button, button_handle in all_objects_with_variant(&it, UIButton) {
+		screen_aabb := get_texture_aabb_for_object(
+			button.obj,
+			game.final_transforms[button_handle.idx].transform,
+		)
+		hovering := is_point_in_aabb(mouse_screen_pos, screen_aabb)
+		scale_target := button.min_scale
+		if hovering {
+			scale_target = button.max_scale
+		}
+		button.scale *= 1 + (scale_target - button.scale) * 0.1
+		// clicking := hovering && rl.IsMouseButtonDown(.LEFT)
+		if hovering {
+			button.color = BEE_YELLOW
+			button.text_color = rl.BLACK
+		} else {
+			button.color = rl.BLACK
+			button.text_color = BEE_YELLOW
+		}
+		click_confirmed := hovering && rl.IsMouseButtonReleased(.LEFT)
+		if click_confirmed {
+			button.on_click({game, button, button_handle})
+		}
+	}
+}
+
+
 main_menu_stop :: proc() {
 	menu_container_obj, ok := hm.get(&game.objects, game.menu_container)
 	if !ok {
@@ -250,6 +316,7 @@ main_menu_stop :: proc() {
 		hm.remove(&game.objects, button)
 	}
 }
+
 
 atomic_chair_start :: proc() {
 	game.paused = false
@@ -278,12 +345,116 @@ atomic_chair_start :: proc() {
 	player := hm.get(&game.objects, player_handle)
 }
 
+
+pause_menu_start :: proc() {
+	resume_button := spawn_button(
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
+		.White,
+		"RESUME",
+		proc(info: ButtonCallbackInfo) {
+			game := info.game
+			pause_menu_stop()
+			game.paused = false
+		},
+	)
+	//TODO volume sliders
+	main_menu_button := spawn_button(
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
+		.White,
+		"QUIT",
+		proc(info: ButtonCallbackInfo) {
+			game := info.game
+			pause_menu_stop()
+			atomic_chair_stop()
+			game.menu_state = .MainMenu
+			main_menu_start()
+		},
+	)
+	pause_menu_objects := [dynamic]GameObjectHandle{resume_button, main_menu_button}
+	menu_container := hm.get(&game.objects, game.menu_container)
+	menu_container.associated_objects["pause_menu"] = pause_menu_objects
+}
+pause_menu_stop :: proc() {
+	menu_container_obj, ok := hm.get(&game.objects, game.menu_container)
+	if !ok {
+		print("menu container handle is invalid")
+		return
+	}
+	pause_menu_buttons := menu_container_obj.associated_objects["pause_menu"].([dynamic]GameObjectHandle)
+	for button in pause_menu_buttons {
+		hm.remove(&game.objects, button)
+	}
+}
+
 //game-specific teardown / reset logic
-reset_game :: proc() {}
+reset_game :: proc() {
+	hm.clear(&game.objects)
+	recreate_final_transforms()
+	game.frame_counter = 0
+	game.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"})
+}
 
 //game-specific update logic (run once per frame)
-game_update :: proc(dt: f64) {}
+game_update :: proc(dt: f64) {
+	switch game.menu_state {
+	case .InGame:
+		atomic_chair_update(dt)
+	case .MainMenu:
+		main_menu_update(dt)
+	}
+}
 
+atomic_chair_update :: proc(dt: f64) {
+	if rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
+		game.paused = !game.paused
+		if game.paused {
+			pause_menu_start()
+			recreate_final_transforms()
+		} else {
+			pause_menu_stop()
+		}
+	}
+	// main game logic
+	timer := timer()
+	handle_ui_buttons()
+	if game.paused {
+		//TODO additional pause menu stuff?
+		return
+	}
+	timer->time("handle buttons")
+	{
+		chunks_near_cam := get_chunks_near_cam(1)
+		for chunk in chunks_near_cam {
+			if chunk not_in game.loaded_chunks {
+				tilemap := get_tilemap_chunk(chunk)
+				min_corner, _ := get_tilemap_corners(chunk)
+				for i in 0 ..< CHUNK_WIDTH_TILES {
+					for j in 0 ..< CHUNK_HEIGHT_TILES {
+						if tilemap[i][j].spawn == .Enemy {
+							spawn_tile := min_corner + TilemapTileId{i, j}
+							for _ in 0 ..< 3 {
+								pos := random_point_in_tile(spawn_tile)
+								spawn_enemy(pos, .Basic)
+							}
+						}
+					}
+				}
+				game.loaded_chunks[chunk] = {}
+			}
+		}
+		//TODO load/unload chunks if cam chunks changed
+		//mostly need to decide what to actually do on chunk unload
+		//1. unload tilemap
+		//2. unload (inactive?) enemies currently in chunk?
+		//3. remember which enemies to respawn when chunk is loaded again?
+	}
+	timer->time("load chunks")
+}
+
+atomic_chair_stop :: proc() {
+	//TODO save progress
+	reset_game()
+}
 
 ButtonCallbackInfo :: struct {
 	game:          ^Game,
@@ -323,4 +494,58 @@ spawn_button :: proc(
 		parent_handle = game.screen_space_parent_handle,
 	}
 	return spawn_object(button_obj)
+}
+
+
+EnemyType :: enum {
+	Basic,
+	Nerd,
+	Indecisive,
+	Killer,
+	Raging,
+	Wacky,
+	Rhyming,
+}
+spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
+	body := GameObject {
+		name = "enemy",
+		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
+		tags = {.Enemy, .Collide, .Sprite},
+		hitbox = {layer = .Enemy, box = {{-45, -45}, {45, 45}}}, //relative to object's pivot
+		linear_drag = ENEMY_LINEAR_DRAG,
+		render_layer = uint(RenderLayer.Enemy),
+		variant = Enemy {
+			pos,
+			.Alive_Inactive,
+			enemy_type,
+			rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
+			{},
+		},
+	}
+	body.texture = atlas_textures[.Enemy_Face]
+	body.color = rl.WHITE
+	obj_name := "enemy"
+	//TODO other stuff that varies per enemy type like different textures / animation states
+	switch enemy_type {
+	case .Basic:
+		obj_name = "basic enemy"
+	case .Nerd:
+		obj_name = "nerd enemy"
+	case .Indecisive:
+		obj_name = "indecisive enemy"
+	case .Killer:
+		obj_name = "killer enemy"
+	case .Raging:
+		obj_name = "raging enemy"
+	case .Wacky:
+		obj_name = "wacky enemy"
+	case .Rhyming:
+		obj_name = "rhyming enemy"
+	}
+	body.name = fmt.aprint(obj_name)
+	body_handle := spawn_object(body)
+	enemy := hm.get(&game.objects, body_handle)
+	AVG_LETTER_WIDTH :: 20 * (1.25 / BASE_WINDOW_WIDTH)
+	AVG_LETTER_HEIGHT :: 30 * (1.25 / BASE_WINDOW_WIDTH)
+	return body_handle
 }
