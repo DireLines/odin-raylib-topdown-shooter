@@ -59,14 +59,14 @@ TILE_SIZE :: 8
 PACKAGE_NAME :: "main"
 
 // The folder within which to look for textures
-TEXTURES_DIR :: "textures"
+TEXTURES_DIR :: "source/textures"
 
 // The letters to extract from the font
 LETTERS_IN_FONT :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890,.?!@#$%^&*()_+-=`~[]{}<>|/;:'"
 NUM_LETTERS_PER_FONT :: len(LETTERS_IN_FONT)
 
 // The folder of fonts to extract letters from
-FONTS_DIR :: "fonts"
+FONTS_DIR :: "source/fonts"
 
 // letters are rasterized into the atlas, so you have to choose a size for them to be rendered at
 FONT_SIZE :: 72
@@ -234,19 +234,12 @@ asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", name)
 }
 
-load_font :: proc(filename: string) ->
+load_font :: proc(
+	filename: string,
+) -> // Loads a tileset. Currently only supports .ase tilesets
 
 
-	// Loads a tileset. Currently only supports .ase tilesets
-
-
-	//first sort by type, then by orig id
-
-
-	//cut off the rect type id to just keep orig id
-
-
-	Font {//cut off the rect type id to just keep orig id
+	Font { 	//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
 	font_data, err := os.read_entire_file(filename, context.allocator)
 	if err != nil {
 		log.warnf("oops no font found at %s", filename)
