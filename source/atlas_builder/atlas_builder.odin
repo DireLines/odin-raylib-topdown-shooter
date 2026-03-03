@@ -40,11 +40,11 @@ import stbtt "vendor:stb/truetype"
 ATLAS_SIZE :: 512
 
 // Path to output final atlas PNG to
-ATLAS_PNG_OUTPUT_PATH :: "atlas.png"
+ATLAS_PNG_OUTPUT_PATH :: "source/atlas.png"
 
 // Path to output atlas Odin metadata file to. Compile this as part of your game to get metadata
 // about where in atlas your textures etc are.
-ATLAS_ODIN_OUTPUT_PATH :: "atlas.odin"
+ATLAS_ODIN_OUTPUT_PATH :: "source/atlas.odin"
 
 // Set to false to not crop atlas after generation.
 ATLAS_CROP :: true
@@ -236,10 +236,7 @@ asset_name :: proc(path: string) -> string {
 
 load_font :: proc(
 	filename: string,
-) -> // Loads a tileset. Currently only supports .ase tilesets
-
-
-	Font { 	//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
+) -> Font { 	// Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
 	font_data, err := os.read_entire_file(filename, context.allocator)
 	if err != nil {
 		log.warnf("oops no font found at %s", filename)
