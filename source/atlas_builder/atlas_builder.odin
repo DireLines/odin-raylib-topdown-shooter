@@ -225,16 +225,26 @@ get_image_pixel :: proc(img: Image, x: int, y: int) -> Color {
 
 // Returns the format I want for names in atlas.odin. Takes the name from a path
 // and turns it from player_jump.png to Player_Jump.
+// For paths under TEXTURES_DIR, the full relative path is used so that files
+// with the same name in different subdirectories produce distinct identifiers,
+// e.g. enemies/goblin.png -> Enemies_Goblin.
 asset_name :: proc(path: string) -> string {
-	name, _ := strings.replace_all(
-		strings.to_ada_case(slashpath.name(slashpath.base(path))),
-		",",
-		"_",
-	)
+	rel: string
+	textures_prefix := TEXTURES_DIR + "/"
+	if idx := strings.index(path, textures_prefix); idx >= 0 {
+		rel = path[idx + len(textures_prefix):]
+		rel = strings.trim_suffix(rel, slashpath.ext(rel)) // strip only extension, keep subdirs
+		rel, _ = strings.replace_all(rel, "/", "_")
+		rel, _ = strings.replace_all(rel, "-", "_")
+		rel, _ = strings.replace_all(rel, ".", "_")
+	} else {
+		rel = slashpath.name(slashpath.base(path))
+	}
+	name, _ := strings.replace_all(strings.to_ada_case(rel), ",", "_")
 	return fmt.tprintf("%s", name)
 }
 
-load_font :: proc(filename: string) -> Font { 	// Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
+load_font :: proc(filename: string) ->  Font {// Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
 	font_data, err := os.read_entire_file(filename, context.allocator)
 	if err != nil {
 		log.warnf("oops no font found at %s", filename)
@@ -560,7 +570,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 	defer png.destroy(img)
 
-	if img.depth != 8 && img.channels != 4 {
+	if img.depth != 8 || img.channels != 4 {
 		log.error(
 			"Only 8 bpp, 4 channels PNG supported (this can probably be fixed by doing some work in `load_png_texture_data`",
 		)
@@ -581,35 +591,46 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 default_context: runtime.Context
 
+dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
+	d, derr := os.open(path, os.O_RDONLY)
+	if derr != nil {
+		log.panicf("No %s folder found", path)
+	}
+	defer os.close(d)
+
+	{
+		file_info, ferr := os.fstat(d, context.allocator)
+		defer os.file_info_delete(file_info, context.allocator)
+
+		if ferr != nil {
+			log.panic("stat failed")
+		}
+		if file_info.type != .Directory {
+			log.panic("not a directory")
+		}
+	}
+
+	result: [dynamic]os.File_Info
+	entries, _ := os.read_dir(d, -1, context.allocator)
+	for fi in entries {
+		if fi.type == .Directory {
+			sub := dir_path_to_file_infos(fi.fullpath)
+			for sfi in sub {
+				append(&result, sfi)
+			}
+		} else {
+			append(&result, fi)
+		}
+	}
+	return result[:]
+}
+
 main :: proc() {
 	context.logger = log.create_console_logger(opt = {.Level})
 	default_context = context
 	start_time := time.now()
 	textures: [dynamic]Texture_Data
 	animations: [dynamic]Animation
-
-	dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
-		d, derr := os.open(path, os.O_RDONLY)
-		if derr != nil {
-			log.panicf("No %s folder found", path)
-		}
-		defer os.close(d)
-
-		{
-			file_info, ferr := os.fstat(d, context.allocator)
-			defer os.file_info_delete(file_info, context.allocator)
-
-			if ferr != nil {
-				log.panic("stat failed")
-			}
-			if file_info.type != .Directory {
-				log.panic("not a directory")
-			}
-		}
-
-		file_infos, _ := os.read_dir(d, -1, context.allocator)
-		return file_infos
-	}
 
 	file_infos := dir_path_to_file_infos(TEXTURES_DIR)
 
@@ -623,7 +644,7 @@ main :: proc() {
 		is_ase := strings.has_suffix(fi.name, ".ase") || strings.has_suffix(fi.name, ".aseprite")
 		is_png := strings.has_suffix(fi.name, ".png")
 		if is_ase || is_png {
-			path := fmt.tprintf("%s/%s", TEXTURES_DIR, fi.name)
+			path := fi.fullpath
 			if strings.has_prefix(fi.name, "tileset") {
 				load_tileset(path, &tileset)
 			} else if is_ase {
@@ -633,7 +654,6 @@ main :: proc() {
 			}
 		}
 	}
-
 
 	pack_rects: [dynamic]stbrp.Rect
 	fonts: [dynamic]Font
@@ -689,8 +709,7 @@ main :: proc() {
 
 	for fi in file_infos {
 		if strings.has_suffix(fi.name, ".ttf") {
-			path := fmt.tprintf("%s/%s", FONTS_DIR, fi.name)
-			append(&fonts, load_font(path))
+			append(&fonts, load_font(fi.fullpath))
 		}
 	}
 	glyphs: [dynamic]Glyph
