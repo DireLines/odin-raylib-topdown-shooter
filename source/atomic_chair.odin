@@ -528,10 +528,10 @@ atomic_chair_update :: proc(dt: f64) {
 							enemy := other
 							e := &enemy.variant.(Enemy)
 							e.health -= 1
-							play_sound(get_sound("hit.wav"))
+							play_sound(get_sound("death.wav"), 0.3)
 							apply_knockback(knockback_vec, enemy)
 							//did we just kill?
-							if e.health == 0 {
+							if e.health <= 0 {
 								e.state = .Dead
 							}
 						case .Player:
@@ -540,8 +540,8 @@ atomic_chair_update :: proc(dt: f64) {
 							//take damage
 							p := &player.variant.(Player)
 							p.health -= 1
-							play_sound(get_sound("death.wav"), 0.5)
 							apply_knockback(knockback_vec, player)
+							play_sound(get_sound("hit.wav"))
 							//did we just die?
 							if p.health <= 0 {
 								p.state = .Dead
