@@ -573,6 +573,8 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	if img.depth != 8 || img.channels != 4 {
 		log.error(
 			"Only 8 bpp, 4 channels PNG supported (this can probably be fixed by doing some work in `load_png_texture_data`",
+			img.depth,
+			img.channels,
 		)
 		return
 	}
