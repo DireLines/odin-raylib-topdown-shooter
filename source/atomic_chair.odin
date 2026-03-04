@@ -18,9 +18,9 @@ BEE_YELLOW :: rl.Color{246, 208, 58, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
 //speeds in world units per second
-PLAYER_MAX_SPEED :: 100
+PLAYER_MAX_SPEED :: 50000
 PLAYER_LINEAR_DRAG :: 5.0
-PLAYER_BULLET_SPEED :: 1200
+PLAYER_BULLET_SPEED :: 2000
 REFLECTED_BULLET_SPEED :: 500
 BULLET_KNOCKBACK_STRENGTH :: 10
 ENEMY_LINEAR_DRAG :: 5.0
@@ -65,6 +65,7 @@ Player :: struct {
 	state:  AliveDeadState,
 }
 Enemy :: struct {
+	health:         int,
 	spawn_point:    vec2,
 	state:          EnemyState,
 	type:           EnemyType,
@@ -460,26 +461,16 @@ atomic_chair_update :: proc(dt: f64) {
 	// player.shader = .SolidColor
 	switch player.variant.(Player).state {
 	case .Alive:
-		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), cv)
-		pos_diff := (mouse_pos - player.position) * 60
+		pos_diff := vec2{get_axis(.A, .D), get_axis(.W, .S)} * PLAYER_MAX_SPEED
 		//flip if needed
 		if math.sign(pos_diff.x) != math.sign(player.scale.x) {
 			player.scale.x *= -1
 		}
-		//move toward mouse
-		move_speed := PLAYER_MAX_SPEED / dt
-		multiplier: f64 = 0
-		if rl.IsMouseButtonDown(.LEFT) {
-			multiplier = 0.1
-		} else if rl.IsMouseButtonDown(.RIGHT) {
-			move_speed *= 0.5 // backward max accel slower
-			multiplier = -0.1
+		//move in that direction
+		player.inst_velocity = pos_diff * PLAYER_MAX_SPEED * dt
+		if linalg.length(player.inst_velocity) > PLAYER_MAX_SPEED * dt {
+			player.inst_velocity = linalg.normalize(player.inst_velocity) * PLAYER_MAX_SPEED * dt
 		}
-		movement_vec := pos_diff
-		if linalg.length(movement_vec) > move_speed {
-			movement_vec = linalg.normalize(movement_vec) * move_speed
-		}
-		player.inst_velocity = movement_vec * multiplier
 		// player.acceleration = movement_vec * multiplier
 		CAM_LERP_AMOUNT :: 0.15
 		// TODO why is this so nauseating when the player starts/stops moving?
@@ -489,18 +480,13 @@ atomic_chair_update :: proc(dt: f64) {
 		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
 		cam.position += (player.position - cam.position) * CAM_LERP_AMOUNT
 		timer->time("move player")
-		keys := [dynamic]rl.KeyboardKey{}; defer delete(keys)
-		key := rl.GetKeyPressed()
-		for key != .KEY_NULL {
-			append(&keys, key)
-			key = rl.GetKeyPressed()
-		}
-		firing_pos := get_world_center(game.player_handle)
-		bullet_diff := mouse_pos - firing_pos
-		bullet_velocity :=
-			linalg.normalize(bullet_diff) * PLAYER_BULLET_SPEED + player.velocity * 0.5
-		bullet_fired := false
-		for key in keys {
+		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), cv)
+		if rl.IsMouseButtonPressed(.LEFT) {
+			firing_pos := get_world_center(game.player_handle)
+			bullet_diff := mouse_pos - firing_pos
+			bullet_velocity :=
+				linalg.normalize(bullet_diff) * PLAYER_BULLET_SPEED + player.velocity * 0.5
+			bullet_fired := false
 			bullet_handle := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
 			if bullet_handle != nil {
 				bullet_fired = true
@@ -513,6 +499,103 @@ atomic_chair_update :: proc(dt: f64) {
 		//TODO play player death sfx, switch sprite to dead bee
 		print("game over :)") //TODO: game over screen, menuing, score
 	}
+	{it := hm.make_iter(&game.objects)
+		for bullet, bullet_handle in all_objects_with_variant(&it, Bullet) {
+			switch bullet.state {
+			case .Alive:
+				collisions, has_collisions := game.collisions[bullet_handle]
+				if !has_collisions {continue}
+				//generally bullet gets destroyed on impact with stuff
+				//but cannot default to destroying it and set false for non-fatal collisions
+				//because we want fatal collisions to take precedence
+				//otherwise bullet appears to clip through things
+				should_kill_bullet := false
+				for collision in collisions {
+					if collision.type != .start {continue}
+					switch other_handle in collision.b {
+					case GameObjectHandle:
+						if other_handle == bullet.last_hit_object {continue}
+						other, ok := hm.get(&game.objects, other_handle)
+						if !ok {continue}
+						knockback_vec :=
+							(other.position - bullet.position) * BULLET_KNOCKBACK_STRENGTH
+						//TODO operate on tags
+						#partial switch other.hitbox.layer {
+						case .Bullet, .PlayerBullet, .EnemyBullet:
+						//bullets should phase through each other - don't do anything
+						case .Enemy:
+							should_kill_bullet = true
+							enemy := other
+							e := &enemy.variant.(Enemy)
+							e.health -= 1
+							rl.PlaySound(get_sound("hit.wav"))
+							apply_knockback(knockback_vec, enemy)
+							//did we just kill?
+							if e.health == 0 {
+								e.state = .Dead
+
+							}
+						case .Player:
+							should_kill_bullet = true
+							player := other
+							//take damage
+							p := &player.variant.(Player)
+							p.health -= 1
+							rl.PlaySound(get_sound("hit.wav"))
+							apply_knockback(knockback_vec, player)
+							//did we just die?
+							if p.health <= 0 {
+								p.state = .Dead
+							}
+						case:
+							should_kill_bullet = true
+						}
+					case TilemapTileId:
+						should_kill_bullet = true
+						tile := get_tile(other_handle)
+						#partial switch TILE_PROPERTIES[tile.type].layer {
+						}
+						rl.PlaySound(get_sound("hit-dud.wav"))
+					}
+				}
+				if should_kill_bullet {
+					bullet.tags -= {.Collide}
+					bullet.state = .Dead
+					bullet.animation = make_animation_state(.Explosion, 2)
+					//TODO move bullet to point of impact - for this need to remember fatal collision
+					bullet.velocity = {}
+					bullet.scale *= 1.4
+					bullet.rotation += f64(rand.int_max(3)) * 90
+				}
+			case .Dead:
+				num_anim_frames_left := int(
+					bullet.animation.anim.last_frame - bullet.animation.frame,
+				)
+				if num_anim_frames_left <= 0 {
+					hm.remove(&game.objects, bullet_handle)
+				}
+			}
+		}
+	}
+	timer->time("handle bullet hits")
+	{it := hm.make_iter(&game.objects)
+		printed_details := false
+		for enemy, h in all_objects_with_variant(&it, Enemy) {
+			activate_distance :: TILE_SIZE * 50
+			switch enemy.state {
+			case .Alive_Inactive:
+				player_diff := player.position - enemy.position
+				if linalg.length(player_diff) <= activate_distance {
+					enemy.state = .Alive_Active
+				}
+			case .Alive_Active:
+			case .Dead:
+				hm.remove(&game.objects, h)
+				rl.PlaySound(get_sound("augh.wav"))
+			}
+		}
+	}
+	timer->time("move enemies")
 }
 
 atomic_chair_stop :: proc() {
@@ -563,12 +646,6 @@ spawn_button :: proc(
 
 EnemyType :: enum {
 	Basic,
-	Nerd,
-	Indecisive,
-	Killer,
-	Raging,
-	Wacky,
-	Rhyming,
 }
 spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 	body := GameObject {
@@ -579,6 +656,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		linear_drag = ENEMY_LINEAR_DRAG,
 		render_layer = uint(RenderLayer.Enemy),
 		variant = Enemy {
+			3,
 			pos,
 			.Alive_Inactive,
 			enemy_type,
@@ -593,18 +671,6 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 	switch enemy_type {
 	case .Basic:
 		obj_name = "basic enemy"
-	case .Nerd:
-		obj_name = "nerd enemy"
-	case .Indecisive:
-		obj_name = "indecisive enemy"
-	case .Killer:
-		obj_name = "killer enemy"
-	case .Raging:
-		obj_name = "raging enemy"
-	case .Wacky:
-		obj_name = "wacky enemy"
-	case .Rhyming:
-		obj_name = "rhyming enemy"
 	}
 	body.name = fmt.aprint(obj_name)
 	body_handle := spawn_object(body)
@@ -630,4 +696,13 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectH
 	}
 	h := spawn_object(bullet)
 	return h
+}
+
+get_axis :: proc(key_neg, key_pos: rl.KeyboardKey) -> f64 {
+	return f64(int(rl.IsKeyDown(key_pos))) - f64(int(rl.IsKeyDown(key_neg)))
+}
+
+
+apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
+	obj.velocity += knockback
 }
