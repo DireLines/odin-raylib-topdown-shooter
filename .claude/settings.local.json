@@ -4,7 +4,8 @@
       "Bash(./build_hot_reload.sh:*)",
       "Bash(odin root:*)",
       "Bash(ls:*)",
-      "Bash(make hot:*)"
+      "Bash(make hot:*)",
+      "Bash(make:*)"
     ]
   }
 }

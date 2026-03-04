@@ -22,6 +22,11 @@ HOT_DIR = build/hot_reload
 WEB_DIR = build/web
 EMSCRIPTEN_SDK_DIR ?= $(HOME)/repos/emsdk
 
+help: #show this help
+	@grep -E '^[a-zA-Z_-]+:.*#' $(MAKEFILE_LIST) | \
+		sed 's/:.*# */\t/' | \
+		column -t -s '	'
+
 run: #just quickly build and run
 	odin build $(MAIN_DIR) -out:$(EXE) && ./$(EXE)
 speed: #build and run with optimizations on
@@ -95,5 +100,7 @@ web: #build for web using emscripten
 	rm $(WEB_DIR)/game.wasm.o; \
 	echo "Web build created in $(WEB_DIR)"
 
-.PHONY: run speed release debug mem perf compile-perf atlas \
+.PHONY: help run speed release debug mem perf compile-perf atlas \
        hot hot-libs hot-dll hot-exe hot-run web
+
+.DEFAULT_GOAL := help
