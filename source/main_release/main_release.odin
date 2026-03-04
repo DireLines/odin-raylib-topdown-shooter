@@ -5,6 +5,7 @@ For making a release exe that does not use hot reload.
 package main_release
 
 import game ".."
+import "core:fmt"
 import "core:mem"
 
 _ :: mem

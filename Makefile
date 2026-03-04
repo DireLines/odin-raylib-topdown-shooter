@@ -1,3 +1,4 @@
+MAIN_DIR = source/main_release
 ifeq ($(OS),Windows_NT)
 	EXE = game.exe
 else
@@ -5,19 +6,19 @@ else
 endif
 
 run:
-	odin build source -out:$(EXE) && ./$(EXE)
+	odin build $(MAIN_DIR) -out:$(EXE) && ./$(EXE)
 speed:
-	odin build source -out:$(EXE) -o:speed && ./$(EXE)
+	odin build $(MAIN_DIR) -out:$(EXE) -o:speed && ./$(EXE)
 release: atlas wordgen
-	odin build source -out:earshot -o:speed -define:validate=false -define:show_fps=false
+	odin build $(MAIN_DIR) -out:earshot -o:speed -define:validate=false -define:show_fps=false
 debug:
-	odin build source -out:$(EXE) -debug -o:none -define:draw_debug_shapes=true
+	odin build $(MAIN_DIR) -out:$(EXE) -debug -o:none -define:draw_debug_shapes=true
 mem:
-	odin build source -out:$(EXE) -o:speed -define:track_allocations=true
+	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:track_allocations=true
 perf:
-	odin build source -out:$(EXE) -o:speed -define:timing_logs=true
+	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:timing_logs=true
 compile-perf:
-	odin build source -out:$(EXE) -show-timings -show-more-timings -o:speed
+	odin build $(MAIN_DIR) -out:$(EXE) -show-timings -show-more-timings -o:speed
 atlas:
 	odin run source/atlas_builder
 wordgen:
