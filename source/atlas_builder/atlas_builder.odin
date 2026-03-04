@@ -570,13 +570,24 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 
 	defer png.destroy(img)
 
-	if img.depth != 8 || img.channels != 4 {
+	if img.depth != 8 || (img.channels != 3 && img.channels != 4) {
 		log.error(
-			"Only 8 bpp, 4 channels PNG supported (this can probably be fixed by doing some work in `load_png_texture_data`",
+			"Only 8 bpp, 3 or 4 channels PNG supported",
+			asset_name(filename),
 			img.depth,
 			img.channels,
 		)
 		return
+	}
+
+	pixels: []Color
+	if img.channels == 3 {
+		pixels = make([]Color, img.width * img.height)
+		for i in 0 ..< img.width * img.height {
+			pixels[i] = {img.pixels.buf[i * 3], img.pixels.buf[i * 3 + 1], img.pixels.buf[i * 3 + 2], 255}
+		}
+	} else {
+		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:]))
 	}
 
 	td := Texture_Data {
@@ -585,7 +596,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 		document_size = {img.width, img.height},
 		duration      = 0,
 		name          = asset_name(filename),
-		pixels        = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:])),
+		pixels        = pixels,
 	}
 
 	append(textures, td)
