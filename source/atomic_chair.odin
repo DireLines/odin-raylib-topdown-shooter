@@ -153,7 +153,7 @@ TileType :: enum {
 //properties of each type of tile
 TILE_PROPERTIES := [TileType]TileTypeInfo {
 	.None = {
-		texture = atlas_textures[.Rock],
+		texture = atlas_textures[.Cavefloor],
 		render_layer = uint(RenderLayer.Floor),
 		random_rotation = true,
 	},
