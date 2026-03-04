@@ -490,7 +490,7 @@ atomic_chair_update :: proc(dt: f64) {
 			bullet_handle := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
 			if bullet_handle != nil {
 				bullet_fired = true
-				rl.PlaySound(get_sound("light-fire.wav"))
+				play_sound(get_sound("light-fire.wav"))
 			}
 		}
 		timer->time("spawn bullets")
@@ -528,12 +528,11 @@ atomic_chair_update :: proc(dt: f64) {
 							enemy := other
 							e := &enemy.variant.(Enemy)
 							e.health -= 1
-							rl.PlaySound(get_sound("hit.wav"))
+							play_sound(get_sound("hit.wav"))
 							apply_knockback(knockback_vec, enemy)
 							//did we just kill?
 							if e.health == 0 {
 								e.state = .Dead
-
 							}
 						case .Player:
 							should_kill_bullet = true
@@ -541,7 +540,7 @@ atomic_chair_update :: proc(dt: f64) {
 							//take damage
 							p := &player.variant.(Player)
 							p.health -= 1
-							rl.PlaySound(get_sound("hit.wav"))
+							play_sound(get_sound("death.wav"), 0.5)
 							apply_knockback(knockback_vec, player)
 							//did we just die?
 							if p.health <= 0 {
@@ -555,8 +554,9 @@ atomic_chair_update :: proc(dt: f64) {
 						tile := get_tile(other_handle)
 						#partial switch TILE_PROPERTIES[tile.type].layer {
 						}
-						rl.PlaySound(get_sound("hit-dud.wav"))
+						play_sound(get_sound("hit-dud.wav"))
 					}
+					if should_kill_bullet {break}
 				}
 				if should_kill_bullet {
 					bullet.tags -= {.Collide}
@@ -591,7 +591,7 @@ atomic_chair_update :: proc(dt: f64) {
 			case .Alive_Active:
 			case .Dead:
 				hm.remove(&game.objects, h)
-				rl.PlaySound(get_sound("augh.wav"))
+				play_sound(get_sound("augh.wav"))
 			}
 		}
 	}
@@ -705,4 +705,9 @@ get_axis :: proc(key_neg, key_pos: rl.KeyboardKey) -> f64 {
 
 apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
 	obj.velocity += knockback
+}
+
+play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
+	rl.SetSoundVolume(sound, volume)
+	rl.PlaySound(sound)
 }
