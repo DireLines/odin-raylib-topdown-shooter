@@ -3,7 +3,8 @@
     "allow": [
       "Bash(./build_hot_reload.sh:*)",
       "Bash(odin root:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(make hot:*)"
     ]
   }
 }
