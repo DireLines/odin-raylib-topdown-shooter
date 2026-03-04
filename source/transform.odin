@@ -1,4 +1,4 @@
-package game_main
+package game
 import "core:math"
 import "core:math/linalg"
 import hm "handle_map_static"

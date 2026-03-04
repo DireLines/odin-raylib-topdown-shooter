@@ -4,7 +4,7 @@
 // `--preload-file assets` in `build_web` script.
 
 
-package game_main
+package game
 
 import "base:runtime"
 import "core:c"

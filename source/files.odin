@@ -1,4 +1,4 @@
-package game_main
+package game
 import "core:slice"
 import "core:strings"
 import rl "vendor:raylib"

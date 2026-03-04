@@ -1,4 +1,4 @@
-package game_main
+package game
 import "base:runtime"
 import "core:fmt"
 import "core:time"

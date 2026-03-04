@@ -1,4 +1,4 @@
-package game_main
+package game
 import "core:fmt"
 import "core:math"
 import "core:reflect"

@@ -3,7 +3,7 @@ Development game exe. Loads build/hot_reload/game.dll and reloads it whenever it
 changes.
 */
 
-package game_main
+package game
 
 import "core:c/libc"
 import "core:dynlib"

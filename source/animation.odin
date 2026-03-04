@@ -1,4 +1,4 @@
-package game_main
+package game
 import hm "handle_map_static"
 
 //animation system

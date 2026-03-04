@@ -9,7 +9,7 @@ run:
 	odin build $(MAIN_DIR) -out:$(EXE) && ./$(EXE)
 speed:
 	odin build $(MAIN_DIR) -out:$(EXE) -o:speed && ./$(EXE)
-release: atlas wordgen
+release: atlas
 	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:validate=false -define:show_fps=false
 debug:
 	odin build $(MAIN_DIR) -out:$(EXE) -debug -o:none -define:draw_debug_shapes=true
@@ -21,5 +21,3 @@ compile-perf:
 	odin build $(MAIN_DIR) -out:$(EXE) -show-timings -show-more-timings -o:speed
 atlas:
 	odin run source/atlas_builder
-wordgen:
-	odin run source/words/word_generator

@@ -1,7 +1,7 @@
 #+build !wasm32
 #+build !wasm64p32
 
-package game_main
+package game
 
 import "core:os"
 

@@ -1,5 +1,5 @@
 #+feature dynamic-literals
-package game_main
+package game
 
 import "core:fmt"
 import "core:math/linalg"

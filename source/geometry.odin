@@ -1,4 +1,4 @@
-package game_main
+package game
 import pq "core:container/priority_queue"
 import "core:math"
 import "core:math/linalg"

@@ -13,7 +13,7 @@ Handler for Aseprite's `.ase`/`.aseprite`, `.aseprite-extension` &amp; extended 
 ### aseprite
 
 ```odin
-package game_main
+package game
 
 import "core:fmt"
 import ase "odin-aseprite"
@@ -44,7 +44,7 @@ main :: proc() {
 ### gpl
 
 ```odin
-package game_main
+package game
 
 import "core:fmt"
 import "odin-aseprite/gpl"

@@ -56,7 +56,7 @@ TILESET_WIDTH :: 10
 TILE_SIZE :: 8
 
 // for package line at top of atlas Odin metadata file
-PACKAGE_NAME :: "main"
+PACKAGE_NAME :: "game"
 
 // The folder within which to look for textures
 TEXTURES_DIR :: "source/textures"
@@ -234,9 +234,7 @@ asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", name)
 }
 
-load_font :: proc(
-	filename: string,
-) -> Font { 	// Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
+load_font :: proc(filename: string) -> Font { 	// Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
 	font_data, err := os.read_entire_file(filename, context.allocator)
 	if err != nil {
 		log.warnf("oops no font found at %s", filename)
