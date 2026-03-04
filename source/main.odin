@@ -183,7 +183,7 @@ ChunkId :: distinct [2]int
 @(export)
 game_init_window :: proc() {
 	//raylib init
-	// rl.SetTraceLogLevel(.NONE) //shup up
+	rl.SetTraceLogLevel(.NONE) //shup up
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
 	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, GAME_NAME)
 	if ODIN_OS != .JS {

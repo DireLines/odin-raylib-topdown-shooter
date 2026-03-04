@@ -2,6 +2,7 @@
 package game
 
 import "core:fmt"
+import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
 import hm "handle_map_static"
@@ -59,7 +60,6 @@ EnemyState :: enum {
 //for example, an enemy might need a max speed, state machine behavior, and an equipped weapon
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
-DefaultVariant :: distinct struct{}
 Player :: struct {
 	health: int,
 	state:  AliveDeadState,
@@ -71,14 +71,20 @@ Enemy :: struct {
 	pathfind_index: uint,
 	path:           TilePath,
 }
+Bullet :: struct {
+	last_hit_object: Maybe(GameObjectHandle),
+	state:           AliveDeadState,
+}
 UIButton :: struct {
 	min_scale, max_scale: vec2,
 	on_click:             proc(info: ButtonCallbackInfo),
 }
+DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
 	DefaultVariant,
 	Player,
 	Enemy,
+	Bullet,
 	UIButton,
 }
 GameSpecificProps :: struct {
@@ -449,6 +455,64 @@ atomic_chair_update :: proc(dt: f64) {
 		//3. remember which enemies to respawn when chunk is loaded again?
 	}
 	timer->time("load chunks")
+	//player movement
+	player, player_present := hm.get(&game.objects, game.player_handle)
+	// player.shader = .SolidColor
+	switch player.variant.(Player).state {
+	case .Alive:
+		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), cv)
+		pos_diff := (mouse_pos - player.position) * 60
+		//flip if needed
+		if math.sign(pos_diff.x) != math.sign(player.scale.x) {
+			player.scale.x *= -1
+		}
+		//move toward mouse
+		move_speed := PLAYER_MAX_SPEED / dt
+		multiplier: f64 = 0
+		if rl.IsMouseButtonDown(.LEFT) {
+			multiplier = 0.1
+		} else if rl.IsMouseButtonDown(.RIGHT) {
+			move_speed *= 0.5 // backward max accel slower
+			multiplier = -0.1
+		}
+		movement_vec := pos_diff
+		if linalg.length(movement_vec) > move_speed {
+			movement_vec = linalg.normalize(movement_vec) * move_speed
+		}
+		player.inst_velocity = movement_vec * multiplier
+		// player.acceleration = movement_vec * multiplier
+		CAM_LERP_AMOUNT :: 0.15
+		// TODO why is this so nauseating when the player starts/stops moving?
+		// //lerp cam to position ahead of player
+		// CAM_LEAD :: 0.3
+		// cam_target := player.position + player.velocity * CAM_LEAD
+		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
+		cam.position += (player.position - cam.position) * CAM_LERP_AMOUNT
+		timer->time("move player")
+		keys := [dynamic]rl.KeyboardKey{}; defer delete(keys)
+		key := rl.GetKeyPressed()
+		for key != .KEY_NULL {
+			append(&keys, key)
+			key = rl.GetKeyPressed()
+		}
+		firing_pos := get_world_center(game.player_handle)
+		bullet_diff := mouse_pos - firing_pos
+		bullet_velocity :=
+			linalg.normalize(bullet_diff) * PLAYER_BULLET_SPEED + player.velocity * 0.5
+		bullet_fired := false
+		for key in keys {
+			bullet_handle := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
+			if bullet_handle != nil {
+				bullet_fired = true
+				rl.PlaySound(get_sound("light-fire.wav"))
+			}
+		}
+		timer->time("spawn bullets")
+	case .Dead:
+		player.velocity = 0
+		//TODO play player death sfx, switch sprite to dead bee
+		print("game over :)") //TODO: game over screen, menuing, score
+	}
 }
 
 atomic_chair_stop :: proc() {
@@ -548,4 +612,22 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 	AVG_LETTER_WIDTH :: 20 * (1.25 / BASE_WINDOW_WIDTH)
 	AVG_LETTER_HEIGHT :: 30 * (1.25 / BASE_WINDOW_WIDTH)
 	return body_handle
+}
+
+spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectHandle) {
+	//shoot bullet
+	tex := atlas_textures[.White]
+	tex_dims := vec2{tex.rect.width, tex.rect.height}
+	scale := vec2{0.24, 0.24}
+	bullet := GameObject {
+		name = fmt.aprint("bullet"),
+		transform = {position = pos, rotation = 0, scale = scale, pivot = (tex_dims / 2)},
+		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
+		velocity = vel,
+		hitbox = {layer = layer, box = {min = -(tex_dims / 2), max = tex_dims / 2}},
+		tags = {.Bullet, .Collide, .Sprite},
+		variant = Bullet{nil, .Alive},
+	}
+	h := spawn_object(bullet)
+	return h
 }
