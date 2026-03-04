@@ -10,7 +10,7 @@ run:
 speed:
 	odin build $(MAIN_DIR) -out:$(EXE) -o:speed && ./$(EXE)
 release: atlas wordgen
-	odin build $(MAIN_DIR) -out:earshot -o:speed -define:validate=false -define:show_fps=false
+	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:validate=false -define:show_fps=false
 debug:
 	odin build $(MAIN_DIR) -out:$(EXE) -debug -o:none -define:draw_debug_shapes=true
 mem:
