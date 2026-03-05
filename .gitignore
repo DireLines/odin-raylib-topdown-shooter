@@ -3,6 +3,8 @@ build/
 game
 game.exe
 game.dSYM
+game_hot_reload.bin
+game_hot_reload.bin.dSYM
 
 earshot
 earshot.exe
