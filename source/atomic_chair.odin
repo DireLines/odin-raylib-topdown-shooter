@@ -10,7 +10,6 @@ import maps "mapgen"
 import rl "vendor:raylib"
 
 //boilerplate / starter code for your game-specific logic in this engine
-
 GAME_NAME :: "atomic chair"
 MENU_BUTTON_SPACING :: 0.15
 MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
