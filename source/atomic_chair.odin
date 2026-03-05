@@ -19,8 +19,8 @@ FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
 //speeds in world units per second
 PLAYER_MAX_SPEED :: 50000
 PLAYER_LINEAR_DRAG :: 5.0
-PLAYER_BULLET_SPEED :: 2000
-REFLECTED_BULLET_SPEED :: 500
+PLAYER_BULLET_SPEED :: 1400
+ENEMY_BULLET_SPEED :: 500
 BULLET_KNOCKBACK_STRENGTH :: 10
 ENEMY_LINEAR_DRAG :: 5.0
 ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
@@ -396,6 +396,8 @@ pause_menu_stop :: proc() {
 //game-specific teardown / reset logic
 reset_game :: proc() {
 	hm.clear(&game.objects)
+	clear(&game.chunks)
+	clear(&game.loaded_chunks)
 	recreate_final_transforms()
 	game.frame_counter = 0
 	game.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"})
