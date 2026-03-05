@@ -18,7 +18,7 @@ else
 	EXTRA_LINKER_FLAGS = '-Wl,-rpath=$$ORIGIN/linux'
 endif
 
-HOT_DIR = build/hot_reload
+HOT_RELOAD_DIR = build/hot_reload
 WEB_DIR = build/web
 EMSCRIPTEN_SDK_DIR ?= $(HOME)/repos/emsdk
 
@@ -46,28 +46,28 @@ atlas: #run build script to generate atlas.png and atlas.odin from the textures 
 
 # --- Hot reload ---
 
-hot: hot-libs hot-dll hot-exe #build hot reload game and runner
+hot-reload: hot-reload-libs hot-reload-dll hot-reload-exe #build hot reload game and runner
 
-hot-libs: #copy platform shared libraries needed at runtime
-	@mkdir -p $(HOT_DIR)
+hot-reload-libs: #copy platform shared libraries needed at runtime
+	@mkdir -p $(HOT_RELOAD_DIR)
 ifeq ($(OS),Windows_NT)
 	@[ -f raylib.dll ] || cp "$(ODIN_ROOT)/vendor/raylib/windows/raylib.dll" .
 else ifneq ($(shell uname),Darwin)
-	@if [ ! -d "$(HOT_DIR)/linux" ]; then \
-		mkdir -p $(HOT_DIR)/linux; \
-		cp -r $(ODIN_ROOT)/vendor/raylib/linux/libraylib*.so* $(HOT_DIR)/linux; \
+	@if [ ! -d "$(HOT_RELOAD_DIR)/linux" ]; then \
+		mkdir -p $(HOT_RELOAD_DIR)/linux; \
+		cp -r $(ODIN_ROOT)/vendor/raylib/linux/libraylib*.so* $(HOT_RELOAD_DIR)/linux; \
 	fi
 endif
 
-hot-dll: hot-libs #build the game shared library
+hot-reload-dll: hot-reload-libs #build the game shared library
 	@echo "Building game$(DLL_EXT)"
 	odin build source \
 		$(if $(EXTRA_LINKER_FLAGS),-extra-linker-flags:"$(EXTRA_LINKER_FLAGS)") \
 		-define:RAYLIB_SHARED=true -build-mode:dll \
-		-out:$(HOT_DIR)/game_tmp$(DLL_EXT) -strict-style -debug
-	mv $(HOT_DIR)/game_tmp$(DLL_EXT) $(HOT_DIR)/game$(DLL_EXT)
+		-out:$(HOT_RELOAD_DIR)/game_tmp$(DLL_EXT) -strict-style -debug
+	mv $(HOT_RELOAD_DIR)/game_tmp$(DLL_EXT) $(HOT_RELOAD_DIR)/game$(DLL_EXT)
 
-hot-exe: #build the hot reload runner executable (skipped if already running)
+hot-reload-exe: #build the hot reload runner executable (skipped if already running)
 	@if command -v pgrep > /dev/null 2>&1 && pgrep -f $(HOT_EXE) > /dev/null 2>&1; then \
 		echo "Hot reloading..."; \
 	elif command -v tasklist > /dev/null 2>&1 && tasklist | grep -q $(HOT_EXE); then \
@@ -77,7 +77,7 @@ hot-exe: #build the hot reload runner executable (skipped if already running)
 		odin build source/main_hot_reload -out:$(HOT_EXE) -strict-style -debug; \
 	fi
 
-hot-run: hot #build and run the hot reload game
+hot-reload-run: hot-reload #build and run the hot reload game
 	./$(HOT_EXE)
 
 # --- Web build ---
@@ -101,6 +101,6 @@ web: #build for web using emscripten
 	echo "Web build created in $(WEB_DIR)"
 
 .PHONY: help run speed release debug mem perf compile-perf atlas \
-       hot hot-libs hot-dll hot-exe hot-run web
+       hot-reload hot-reload-libs hot-reload-dll hot-reload-exe hot-reload-run web
 
 .DEFAULT_GOAL := run
