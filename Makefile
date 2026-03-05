@@ -1,9 +1,31 @@
 MAIN_DIR = source/main_release
+ODIN_ROOT := $(shell odin root)
+
 ifeq ($(OS),Windows_NT)
 	EXE = game.exe
+	HOT_EXE = game_hot_reload.exe
+	DLL_EXT = .dll
+	EXTRA_LINKER_FLAGS =
+else ifeq ($(shell uname),Darwin)
+	EXE = game
+	HOT_EXE = game_hot_reload.bin
+	DLL_EXT = .dylib
+	EXTRA_LINKER_FLAGS = -Wl,-rpath $(ODIN_ROOT)/vendor/raylib/macos
 else
 	EXE = game
+	HOT_EXE = game_hot_reload.bin
+	DLL_EXT = .so
+	EXTRA_LINKER_FLAGS = '-Wl,-rpath=$$ORIGIN/linux'
 endif
+
+HOT_DIR = build/hot_reload
+WEB_DIR = build/web
+EMSCRIPTEN_SDK_DIR ?= $(HOME)/repos/emsdk
+
+help: #show this help
+	@grep -E '^[a-zA-Z_-]+:.*#' $(MAKEFILE_LIST) | \
+		sed 's/:.*# */\t/' | \
+		column -t -s '	'
 
 run: #just quickly build and run
 	odin build $(MAIN_DIR) -out:$(EXE) && ./$(EXE)
@@ -21,3 +43,64 @@ compile-perf: #build with verbose compiler output to troubleshoot slow compiles 
 	odin build $(MAIN_DIR) -out:$(EXE) -show-timings -show-more-timings -o:speed
 atlas: #run build script to generate atlas.png and atlas.odin from the textures folder
 	odin run source/atlas_builder
+
+# --- Hot reload ---
+
+hot: hot-libs hot-dll hot-exe #build hot reload game and runner
+
+hot-libs: #copy platform shared libraries needed at runtime
+	@mkdir -p $(HOT_DIR)
+ifeq ($(OS),Windows_NT)
+	@[ -f raylib.dll ] || cp "$(ODIN_ROOT)/vendor/raylib/windows/raylib.dll" .
+else ifneq ($(shell uname),Darwin)
+	@if [ ! -d "$(HOT_DIR)/linux" ]; then \
+		mkdir -p $(HOT_DIR)/linux; \
+		cp -r $(ODIN_ROOT)/vendor/raylib/linux/libraylib*.so* $(HOT_DIR)/linux; \
+	fi
+endif
+
+hot-dll: hot-libs #build the game shared library
+	@echo "Building game$(DLL_EXT)"
+	odin build source \
+		$(if $(EXTRA_LINKER_FLAGS),-extra-linker-flags:"$(EXTRA_LINKER_FLAGS)") \
+		-define:RAYLIB_SHARED=true -build-mode:dll \
+		-out:$(HOT_DIR)/game_tmp$(DLL_EXT) -strict-style -debug
+	mv $(HOT_DIR)/game_tmp$(DLL_EXT) $(HOT_DIR)/game$(DLL_EXT)
+
+hot-exe: #build the hot reload runner executable (skipped if already running)
+	@if command -v pgrep > /dev/null 2>&1 && pgrep -f $(HOT_EXE) > /dev/null 2>&1; then \
+		echo "Hot reloading..."; \
+	elif command -v tasklist > /dev/null 2>&1 && tasklist | grep -q $(HOT_EXE); then \
+		echo "Hot reloading..."; \
+	else \
+		echo "Building $(HOT_EXE)"; \
+		odin build source/main_hot_reload -out:$(HOT_EXE) -strict-style -debug; \
+	fi
+
+hot-run: hot #build and run the hot reload game
+	./$(HOT_EXE)
+
+# --- Web build ---
+
+web: #build for web using emscripten
+	@mkdir -p $(WEB_DIR)
+	@export EMSDK_QUIET=1; \
+	[ -f "$(EMSCRIPTEN_SDK_DIR)/emsdk_env.sh" ] && . "$(EMSCRIPTEN_SDK_DIR)/emsdk_env.sh"; \
+	odin build source/main_web -o:speed -target:js_wasm32 -build-mode:obj \
+		-define:RAYLIB_WASM_LIB=env.o -define:RAYGUI_WASM_LIB=env.o \
+		-strict-style -out:$(WEB_DIR)/game.wasm.o; \
+	cp $(ODIN_ROOT)/core/sys/wasm/js/odin.js $(WEB_DIR); \
+	emcc -g -o $(WEB_DIR)/index.html \
+		$(WEB_DIR)/game.wasm.o \
+		$(ODIN_ROOT)/vendor/raylib/wasm/libraylib.a \
+		$(ODIN_ROOT)/vendor/raylib/wasm/libraygui.a \
+		-sUSE_GLFW=3 -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sASSERTIONS \
+		-sINITIAL_HEAP=2147483648 '-sEXPORTED_RUNTIME_METHODS=["HEAPF32"]' \
+		--shell-file source/main_web/index_template.html; \
+	rm $(WEB_DIR)/game.wasm.o; \
+	echo "Web build created in $(WEB_DIR)"
+
+.PHONY: help run speed release debug mem perf compile-perf atlas \
+       hot hot-libs hot-dll hot-exe hot-run web
+
+.DEFAULT_GOAL := help

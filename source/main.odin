@@ -326,6 +326,7 @@ game_step :: proc() {
 	timer->time("teardown")
 }
 
+@(export)
 game_should_run :: proc() -> bool {
 	when ODIN_OS != .JS {
 		// Never run this proc in browser. It contains a 16 ms sleep on web!
