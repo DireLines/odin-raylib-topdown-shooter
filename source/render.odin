@@ -64,7 +64,7 @@ draw_texture_quad :: proc(
 		#unroll for i in 0 ..< 4 {
 			screen_corners[i] = world_to_screen(
 				mat_vec_mul(transform, SQUARE_CORNERS[i] * TEXTURE_PIXELS_PER_WORLD_UNIT),
-				cv,
+				screen_conversion,
 			)
 		}
 	}
@@ -166,7 +166,7 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		total_dims := current_string_dims
 		word_start_pos := mat_vec_mul(final_transform.transform, obj.pivot)
 		if !final_transform.screen_space {
-			word_start_pos = world_to_screen(word_start_pos, cv)
+			word_start_pos = world_to_screen(word_start_pos, screen_conversion)
 		}
 		word_start_pos -= vec2f32_to_vec2(total_dims) / 2
 		if obj.display_current_string {
@@ -248,7 +248,10 @@ draw_debug_box :: proc(world_box: AABB, color: rl.Color = rl.GREEN, filled: bool
 }
 draw_debug_box_now :: proc(world_box: AABB, color: rl.Color = rl.GREEN, filled: bool = false) {
 	screen_hitbox := aabb_to_rect(
-		AABB{min = world_to_screen(world_box.min, cv), max = world_to_screen(world_box.max, cv)},
+		AABB {
+			min = world_to_screen(world_box.min, screen_conversion),
+			max = world_to_screen(world_box.max, screen_conversion),
+		},
 	)
 	if filled {
 		rl.DrawRectangle(
@@ -297,7 +300,7 @@ draw_debug_circle_now :: proc(
 	color: rl.Color = rl.RED,
 	filled: bool = true,
 ) {
-	center := world_to_screen(world_coords, cv)
+	center := world_to_screen(world_coords, screen_conversion)
 	if filled {
 		rl.DrawCircle(i32(center.x), i32(center.y), radius, color)
 	} else {
@@ -317,8 +320,8 @@ draw_debug_line :: proc(world_start, world_end: vec2, thickness: f32, color: rl.
 }
 draw_debug_line_now :: proc(world_start, world_end: vec2, thickness: f32, color: rl.Color) {
 	rl.DrawLineEx(
-		vec2_to_vec2f32(world_to_screen(world_start, cv)),
-		vec2_to_vec2f32(world_to_screen(world_end, cv)),
+		vec2_to_vec2f32(world_to_screen(world_start, screen_conversion)),
+		vec2_to_vec2f32(world_to_screen(world_end, screen_conversion)),
 		thickness,
 		color,
 	)
@@ -527,8 +530,8 @@ render :: proc() {
 
 get_chunks_near_cam :: proc(border_screen_multiples: f64 = 0) -> []ChunkId {
 	disp: vec2 = {WINDOW_WIDTH, WINDOW_HEIGHT} * border_screen_multiples
-	top_left := screen_to_world({0, 0} - disp, cv)
-	bottom_right := screen_to_world({WINDOW_WIDTH, WINDOW_HEIGHT} + disp, cv)
+	top_left := screen_to_world({0, 0} - disp, screen_conversion)
+	bottom_right := screen_to_world({WINDOW_WIDTH, WINDOW_HEIGHT} + disp, screen_conversion)
 	chunks := get_chunks_between(
 		get_containing_chunk(top_left),
 		get_containing_chunk(bottom_right),

@@ -103,7 +103,6 @@ rl_rect_to_rect :: proc(r: rl.Rectangle) -> Rect {
 	return {x = f64(r.x), y = f64(r.y), width = f64(r.width), height = f64(r.height)}
 }
 
-cam := Transform{}
 
 Game :: struct {
 	objects:                    GameObjects,
@@ -121,6 +120,7 @@ Game :: struct {
 	render_counter:             u64, // frames including renders while game is paused inside of menus and such
 	screen_space_parent_handle: GameObjectHandle, //indicates that an object whose parent handle is this should be drawn in screen space rather than global coords
 	paused, quit:               bool,
+	cam:                        Transform,
 
 
 	//game-specific stuff

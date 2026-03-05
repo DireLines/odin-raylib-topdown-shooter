@@ -214,7 +214,7 @@ game_start :: proc() {
 	player_spawn_tile: TilemapTileId
 	game.global_tilemap, player_spawn_tile = load_map()
 	game.player_spawn_point = get_tile_center(player_spawn_tile)
-	cam.position = game.player_spawn_point
+	game.cam.position = game.player_spawn_point
 
 	game.menu_state = .MainMenu
 	main_menu_start()
@@ -276,9 +276,9 @@ main_menu_update :: proc(dt: f64) {
 	timer := timer()
 	handle_ui_buttons()
 	timer->time("handle buttons")
-	cam.position += {30, 40} * dt
+	game.cam.position += {30, 40} * dt
 	if game.render_counter % 300 == 0 {
-		cam.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
+		game.cam.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
 	}
 }
 
@@ -480,9 +480,9 @@ atomic_chair_update :: proc(dt: f64) {
 		// CAM_LEAD :: 0.3
 		// cam_target := player.position + player.velocity * CAM_LEAD
 		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
-		cam.position += (player.position - cam.position) * CAM_LERP_AMOUNT
+		game.cam.position += (player.position - game.cam.position) * CAM_LERP_AMOUNT
 		timer->time("move player")
-		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), cv)
+		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), screen_conversion)
 		if rl.IsMouseButtonPressed(.LEFT) {
 			firing_pos := get_world_center(game.player_handle)
 			bullet_diff := mouse_pos - firing_pos
