@@ -186,11 +186,16 @@ img_to_tilemap :: proc(
 	tiles := maps.make_grid_slice(Tile, w, h)
 	for i in 0 ..< w {
 		for j in 0 ..< h {
-			tiles[i][j] = color_to_tile(img[i][j])
-			tiles[i][j].rotation = rand.choice_enum(CardinalDirection)
-			if tiles[i][j].spawn == .Player {
+			tile := color_to_tile(img[i][j])
+			props := TILE_PROPERTIES[tile.type]
+			tile.rotation = .North
+			if props.random_rotation {
+				tile.rotation = rand.choice_enum(CardinalDirection)
+			}
+			if tile.spawn == .Player {
 				player_spawn = TilemapTileId{i, j}
 			}
+			tiles[i][j] = tile
 		}
 	}
 	return tiles, player_spawn

@@ -160,13 +160,14 @@ TileType :: enum {
 //properties of each type of tile
 TILE_PROPERTIES := [TileType]TileTypeInfo {
 	.None = {
-		texture = atlas_textures[.Cavefloor],
+		texture      = atlas_textures[.Kenney_New_Platformer_Pack_1_1_Large_Block_Strong_Empty],
 		render_layer = uint(RenderLayer.Floor),
-		random_rotation = true,
+		color        = {128, 128, 128, 255},
+		// random_rotation = true,
 	},
 	.Wall = {
 		collision = {layer = .Wall, resolve = true, trigger_events = true},
-		texture = atlas_textures[.Rock],
+		texture = atlas_textures[.Kenney_New_Platformer_Pack_1_1_Large_Block_Blue],
 		render_layer = uint(RenderLayer.Ceiling),
 		wall_render_info = RenderInfo {
 			texture = atlas_textures[.Darkrock],
@@ -463,7 +464,7 @@ atomic_chair_update :: proc(dt: f64) {
 	case .Alive:
 		pos_diff := vec2{get_axis(.A, .D), get_axis(.W, .S)} * PLAYER_MAX_SPEED
 		//flip if needed
-		if math.sign(pos_diff.x) != math.sign(player.scale.x) {
+		if pos_diff.x != 0 && math.sign(pos_diff.x) != math.sign(player.scale.x) {
 			player.scale.x *= -1
 		}
 		//move in that direction

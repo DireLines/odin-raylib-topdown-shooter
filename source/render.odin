@@ -436,13 +436,10 @@ render :: proc() {
 				if on_wall_layer {
 					change_shader(wall.shader, &curr_shader_name)
 				}
-				// p_pos, ok := player_pos.?
 				color := rl.WHITE
-				// if ok &&
-				//    !has_line_of_sight( get_tile_center(tile_id), p_pos) &&
-				//    !(get_tile( tile_id).type == .Wall) {
-				// 	color = rl.BLACK
-				// }
+				if props.color.a != 0 {
+					color = props.color
+				}
 				draw_tile(tile_id, i, &timer, color, tile = tile, props = props)
 			}
 		}
