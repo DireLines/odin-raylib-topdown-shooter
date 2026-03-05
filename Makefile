@@ -103,4 +103,4 @@ web: #build for web using emscripten
 .PHONY: help run speed release debug mem perf compile-perf atlas \
        hot hot-libs hot-dll hot-exe hot-run web
 
-.DEFAULT_GOAL := help
+.DEFAULT_GOAL := run
