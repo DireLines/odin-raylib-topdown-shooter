@@ -100,7 +100,23 @@ web: #build for web using emscripten
 	rm $(WEB_DIR)/game.wasm.o; \
 	echo "Web build created in $(WEB_DIR)"
 
+# --- Deploy ---
+
+deploy: #deploy build/web to GitHub Pages (gh-pages branch)
+	@if [ ! -f "$(WEB_DIR)/index.html" ]; then echo "Error: $(WEB_DIR)/index.html not found. Run 'make web' first."; exit 1; fi
+	@echo "Deploying $(WEB_DIR) to gh-pages branch..."
+	@cd $(WEB_DIR) && \
+		git init -q && \
+		git checkout -q -B gh-pages && \
+		git add . && \
+		git commit -q -m "deploy" && \
+		git push -f git@github.com:DireLines/odin-raylib-topdown-shooter.git gh-pages
+	@echo "Deployed! Visit: https://direlines.github.io/odin-raylib-topdown-shooter/"
+
+web-deploy: web deploy #build for web then deploy to GitHub Pages
+
 .PHONY: help run speed release debug mem perf compile-perf atlas \
-       hot-reload hot-reload-libs hot-reload-dll hot-reload-exe hot-reload-run web
+       hot-reload hot-reload-libs hot-reload-dll hot-reload-exe hot-reload-run web \
+       deploy web-deploy
 
 .DEFAULT_GOAL := run
