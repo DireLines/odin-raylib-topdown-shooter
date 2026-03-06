@@ -120,7 +120,7 @@ Game :: struct {
 	render_counter:             u64, // frames including renders while game is paused inside of menus and such
 	screen_space_parent_handle: GameObjectHandle, //indicates that an object whose parent handle is this should be drawn in screen space rather than global coords
 	paused, quit:               bool,
-	cam:                        Transform,
+	main_camera:                Transform,
 
 
 	//game-specific stuff

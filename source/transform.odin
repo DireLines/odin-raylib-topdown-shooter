@@ -6,7 +6,7 @@ import hm "handle_map_static"
 
 //screen transformation
 ScreenConversion :: struct {
-	scale:         f64, //TODO make this a transform
+	scale:         f64,
 	screen_width:  f64,
 	screen_height: f64,
 }
@@ -16,10 +16,10 @@ screen_conversion :: ScreenConversion {
 	f64(WINDOW_HEIGHT),
 }
 world_to_screen :: proc(w: vec2, cv: ScreenConversion) -> vec2 {
-	return cv.scale * (w - game.cam.position) + 0.5 * {cv.screen_width, cv.screen_height}
+	return cv.scale * (w - game.main_camera.position) + 0.5 * {cv.screen_width, cv.screen_height}
 }
 screen_to_world :: proc(s: vec2, cv: ScreenConversion) -> vec2 {
-	return (s - 0.5 * {cv.screen_width, cv.screen_height}) / cv.scale + game.cam.position
+	return (s - 0.5 * {cv.screen_width, cv.screen_height}) / cv.scale + game.main_camera.position
 }
 
 //assumes game.final_transforms is up to date
