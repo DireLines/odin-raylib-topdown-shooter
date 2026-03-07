@@ -17,7 +17,7 @@ BEE_YELLOW :: rl.Color{246, 208, 58, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
 //speeds in world units per second
-PLAYER_MAX_SPEED :: 50000
+PLAYER_MAX_SPEED :: 40000
 PLAYER_LINEAR_DRAG :: 5.0
 PLAYER_BULLET_SPEED :: 1400
 ENEMY_BULLET_SPEED :: 500
@@ -166,7 +166,7 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 	},
 	.Wall = {
 		collision = {layer = .Wall, resolve = true, trigger_events = true},
-		texture = atlas_textures[.Kenney_New_Platformer_Pack_1_1_Large_Block_Blue],
+		texture = atlas_textures[.Kenney_New_Platformer_Pack_1_1_Large_Block_Green],
 		render_layer = uint(RenderLayer.Ceiling),
 		wall_render_info = RenderInfo {
 			texture = atlas_textures[.Darkrock],
@@ -336,7 +336,7 @@ atomic_chair_start :: proc() {
 		transform = {
 			position = game.player_spawn_point,
 			rotation = 0,
-			scale = {1, 1},
+			scale = {1.4, 1.4},
 			pivot = {64, 64},
 		},
 		linear_drag = PLAYER_LINEAR_DRAG,
