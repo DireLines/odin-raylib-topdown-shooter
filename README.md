@@ -1,4 +1,4 @@
-This repo is a starter kit for a Nuclear Throne-esque 2D topdown shooter, written in Odin and Raylib.
+This repo is a starter kit for a Nuclear Throne-esque 2D topdown shooter, written in Odin and Raylib. The intended use is for hobbyist game programmers who value control over their engine code to have a springboard for game jams and projects, with some creative commons assets and some core systems common to 2D top-down games figured out already.
 
 # Building
 
