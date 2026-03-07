@@ -256,17 +256,20 @@ main_menu_start :: proc() {
 	)
 	//TODO volume sliders
 	//TODO credits
-	quit_button := spawn_button(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
-		.White,
-		"QUIT",
-		proc(info: ButtonCallbackInfo) {
-			game := info.game
-			main_menu_stop()
-			game.quit = true
-		},
-	)
-	main_menu_objects := [dynamic]GameObjectHandle{play_button, quit_button, titlebar}
+	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar}
+	when ODIN_OS != .JS {
+		quit_button := spawn_button(
+			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
+			.White,
+			"QUIT",
+			proc(info: ButtonCallbackInfo) {
+				game := info.game
+				main_menu_stop()
+				game.quit = true
+			},
+		)
+		append(&main_menu_objects, quit_button)
+	}
 	game.menu_container = spawn_object(
 		GameObject{associated_objects = {"main_menu" = main_menu_objects}},
 	)
