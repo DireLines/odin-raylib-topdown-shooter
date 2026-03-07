@@ -4,6 +4,7 @@ import hm "handle_map_static"
 //animation system
 
 Animation :: struct {
+	name:            AnimationName,
 	using anim:      AtlasAnimation,
 	ticks_per_frame: uint, //TODO: optionally, base on time not frames
 	loop:            bool, //should I keep playing after reaching end of playback?
@@ -99,7 +100,7 @@ make_animation :: proc(
 	ticks_per_frame: uint = 1,
 	loop: bool = true,
 ) -> Animation {
-	return {atlas_animations[anim_name], ticks_per_frame, loop}
+	return {anim_name, atlas_animations[anim_name], ticks_per_frame, loop}
 }
 
 make_animation_state :: proc(

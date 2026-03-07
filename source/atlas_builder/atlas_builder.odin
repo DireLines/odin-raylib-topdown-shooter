@@ -584,7 +584,12 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	if img.channels == 3 {
 		pixels = make([]Color, img.width * img.height)
 		for i in 0 ..< img.width * img.height {
-			pixels[i] = {img.pixels.buf[i * 3], img.pixels.buf[i * 3 + 1], img.pixels.buf[i * 3 + 2], 255}
+			pixels[i] = {
+				img.pixels.buf[i * 3],
+				img.pixels.buf[i * 3 + 1],
+				img.pixels.buf[i * 3 + 2],
+				255,
+			}
 		}
 	} else {
 		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:]))

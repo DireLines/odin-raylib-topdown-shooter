@@ -343,10 +343,10 @@ atomic_chair_start :: proc() {
 		hitbox = {layer = .Player, box = {{-29, -45}, {29, 44}}}, //relative to object's pivot
 		render_info = {
 			color = rl.WHITE,
-			texture = atlas_textures[.Bflap0],
+			texture = atlas_textures[.Squatman0],
 			render_layer = uint(RenderLayer.Player),
 		},
-		animation = initial_animation_state(make_animation(.Bflap, 3)),
+		animation = initial_animation_state(make_animation(.Squatman_Idle, 3)),
 		tags = {.Player, .Collide, .Sprite},
 		variant = Player{5, .Alive},
 	}
@@ -483,6 +483,23 @@ atomic_chair_update :: proc(dt: f64) {
 		// CAM_LEAD :: 0.3
 		// cam_target := player.position + player.velocity * CAM_LEAD
 		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
+		desired_anim_name: AnimationName
+		{
+			if abs(pos_diff.x) > 0 {
+				desired_anim_name = .Squatman_Run_Right
+			} else {
+				if pos_diff.y < 0 {
+					desired_anim_name = .Squatman_Run_Up
+				} else if pos_diff.y > 0 {
+					desired_anim_name = .Squatman_Run_Down
+				} else {
+					desired_anim_name = .Squatman_Idle
+				}
+			}
+		}
+		if desired_anim_name != player.animation.anim.name {
+			player.animation = initial_animation_state(make_animation(desired_anim_name, 4))
+		}
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
 		timer->time("move player")
