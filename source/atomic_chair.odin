@@ -462,12 +462,15 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	timer->time("load chunks")
 	player_take_damage :: proc(player: GameObjectInst(Player)) {
-		play_sound(get_sound("hit.wav"))
 		p := &player.variant.(Player)
 		p.health -= 1
 		//did we just die?
 		if p.health <= 0 {
 			p.state = .Dead
+			play_sound(get_sound("death.wav"))
+			play_sound(get_sound("death2.wav"))
+		} else {
+			play_sound(get_sound("hit.wav"))
 		}
 	}
 	//player movement
