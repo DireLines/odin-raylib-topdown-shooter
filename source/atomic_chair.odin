@@ -461,6 +461,15 @@ atomic_chair_update :: proc(dt: f64) {
 		//3. remember which enemies to respawn when chunk is loaded again?
 	}
 	timer->time("load chunks")
+	player_take_damage :: proc(player: GameObjectInst(Player)) {
+		play_sound(get_sound("hit.wav"))
+		p := &player.variant.(Player)
+		p.health -= 1
+		//did we just die?
+		if p.health <= 0 {
+			p.state = .Dead
+		}
+	}
 	//player movement
 	player, player_present := hm.get(&game.objects, game.player_handle)
 	// player.shader = .SolidColor
@@ -500,6 +509,9 @@ atomic_chair_update :: proc(dt: f64) {
 		if desired_anim_name != player.animation.anim.name {
 			player.animation = initial_animation_state(make_animation(desired_anim_name, 4))
 		}
+		if rl.IsKeyPressed(.R) {
+			player_take_damage(object_inst(player, Player))
+		}
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
 		timer->time("move player")
@@ -519,8 +531,14 @@ atomic_chair_update :: proc(dt: f64) {
 		timer->time("spawn bullets")
 	case .Dead:
 		player.velocity = 0
-		//TODO play player death sfx, switch sprite to dead bee
-		print("game over :)") //TODO: game over screen, menuing, score
+		if player.animation.anim.name != .Squatman_Dead {
+			player.animation = initial_animation_state(
+				make_animation(.Squatman_Dead, loop = false),
+			)
+		}
+		if (player.color.a - 2) < player.color.a {
+			player.color.a -= 2
+		}
 	}
 	{it := hm.make_iter(&game.objects)
 		for bullet, bullet_handle in all_objects_with_variant(&it, Bullet) {
@@ -561,14 +579,9 @@ atomic_chair_update :: proc(dt: f64) {
 							should_kill_bullet = true
 							player := other
 							//take damage
-							p := &player.variant.(Player)
-							p.health -= 1
 							apply_knockback(knockback_vec, player)
 							play_sound(get_sound("hit.wav"))
-							//did we just die?
-							if p.health <= 0 {
-								p.state = .Dead
-							}
+							player_take_damage(object_inst(player, Player))
 						case:
 							should_kill_bullet = true
 						}

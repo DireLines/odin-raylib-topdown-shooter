@@ -8,8 +8,8 @@ GameObjectInst :: struct($T: typeid) {
 	using obj: ^GameObject,
 	using var: ^T,
 }
-object_inst :: proc(o: ^GameObject, variant: $T) -> GameObjectInst(T) {
-	return GameObjectInst(T){o, variant}
+object_inst :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
+	return GameObjectInst(T){o, &o.variant.(T)}
 }
 
 all_objects_with_tags :: proc(
