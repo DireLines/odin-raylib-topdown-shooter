@@ -210,7 +210,7 @@ get_time_to_collide_circle_aabb :: proc(
 	n_best: vec2
 	found := false
 
-	try_update :: #force_inline proc(
+	update_best_if_needed :: #force_inline proc(
 		t_best: ^f64,
 		n_best: ^vec2,
 		found: ^bool,
@@ -225,45 +225,17 @@ get_time_to_collide_circle_aabb :: proc(
 	}
 
 	// 4 flat sides of the Minkowski sum (only valid in the non-corner region)
-	t_l, will_l := get_time_to_collide_ray_line(
-		ray,
-		AABBSide {
-			start = {b.min.x - r, b.min.y},
-			length = b.max.y - b.min.y,
-			direction = .vertical,
-		},
-	)
-	if will_l {try_update(&t_best, &n_best, &found, t_l, {-1, 0})}
-
-	t_r, will_r := get_time_to_collide_ray_line(
-		ray,
-		AABBSide {
-			start = {b.max.x + r, b.min.y},
-			length = b.max.y - b.min.y,
-			direction = .vertical,
-		},
-	)
-	if will_r {try_update(&t_best, &n_best, &found, t_r, {1, 0})}
-
-	t_top, will_top := get_time_to_collide_ray_line(
-		ray,
-		AABBSide {
-			start = {b.min.x, b.min.y - r},
-			length = b.max.x - b.min.x,
-			direction = .horizontal,
-		},
-	)
-	if will_top {try_update(&t_best, &n_best, &found, t_top, {0, -1})}
-
-	t_bot, will_bot := get_time_to_collide_ray_line(
-		ray,
-		AABBSide {
-			start = {b.min.x, b.max.y + r},
-			length = b.max.x - b.min.x,
-			direction = .horizontal,
-		},
-	)
-	if will_bot {try_update(&t_best, &n_best, &found, t_bot, {0, 1})}
+	// mirrors get_time_to_collide_ray_aabb but with each side offset outward by r
+	sides := [SideName]AABBSide {
+		.left   = {start = {b.min.x - r, b.min.y}, length = b.max.y - b.min.y, direction = .vertical},
+		.right  = {start = {b.max.x + r, b.min.y}, length = b.max.y - b.min.y, direction = .vertical},
+		.top    = {start = {b.min.x, b.min.y - r}, length = b.max.x - b.min.x, direction = .horizontal},
+		.bottom = {start = {b.min.x, b.max.y + r}, length = b.max.x - b.min.x, direction = .horizontal},
+	}
+	#unroll for s in SideName {
+		t_s, will_s := get_time_to_collide_ray_line(ray, sides[s])
+		if will_s {update_best_if_needed(&t_best, &n_best, &found, t_s, WALL_NORMALS[s])}
+	}
 
 	// 4 quarter-circles at AABB corners
 	// each is a full circle intersection, but only count hits in the correct outward sector
@@ -284,7 +256,7 @@ get_time_to_collide_circle_aabb :: proc(
 			d := hit_pos - corner.pos
 			// only count the hit if it's in the outward sector of this corner
 			if d.x * corner.sx >= 0 && d.y * corner.sy >= 0 {
-				try_update(&t_best, &n_best, &found, t_c, n_c)
+				update_best_if_needed(&t_best, &n_best, &found, t_c, n_c)
 			}
 		}
 	}

@@ -141,13 +141,15 @@ vec2f32_to_vec2 :: proc(v: rl.Vector2) -> vec2 {
 	return {f64(v.x), f64(v.y)}
 }
 draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
-	if .Collide in obj.tags {
-		hitbox := get_moving_hitbox_for_object(obj, final_transform.transform, 0)
-		switch shape in hitbox.shape {
-		case MovingAABB:
-			draw_debug_box(shape.aabb)
-		case MovingCircle:
-			draw_debug_circle(shape.pos, f32(shape.radius), color = rl.GREEN, filled = false)
+	when draw_debug_shapes {
+		if .Collide in obj.tags {
+			hitbox := get_moving_hitbox_for_object(obj, final_transform.transform, 0)
+			switch shape in hitbox.shape {
+			case MovingAABB:
+				draw_debug_box(shape.aabb)
+			case MovingCircle:
+				draw_debug_circle(shape.pos, f32(shape.radius), color = rl.GREEN, filled = false)
+			}
 		}
 	}
 	parent_handle, has_parent := obj.parent_handle.?
@@ -290,8 +292,8 @@ set_alpha :: proc(c: rl.Color, alpha: u8) -> rl.Color {
 draw_debug_circle :: proc(
 	world_coords: vec2,
 	radius: f32 = 10,
-	color: rl.Color = rl.RED,
-	filled: bool = true,
+	color: rl.Color = rl.GREEN,
+	filled: bool = false,
 ) {
 	append(
 		&debug_circles,
