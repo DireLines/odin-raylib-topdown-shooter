@@ -5,7 +5,9 @@
       "Bash(odin root:*)",
       "Bash(ls:*)",
       "Bash(make hot:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(sed:*)",
+      "Bash(odin build:*)"
     ]
   }
 }

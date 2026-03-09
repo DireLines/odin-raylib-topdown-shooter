@@ -28,12 +28,23 @@ CollisionProperties :: struct {
 	resolve:        bool, //if true, do collision resolution physics
 }
 
+CollisionShape :: union {
+	AABB,
+	Circle,
+}
+
+MovingShape :: union {
+	MovingAABB,
+	MovingCircle,
+}
+
 Hitbox :: struct {
-	using box:       AABB,
+	shape:           CollisionShape,
 	using collision: CollisionProperties,
 }
+
 MovingHitbox :: struct {
-	using box:       MovingAABB,
+	shape:           MovingShape,
 	using collision: CollisionProperties,
 }
 
@@ -117,12 +128,54 @@ get_moving_hitbox_for_object :: proc(
 	precalculated_delta: Maybe(vec2) = nil,
 ) -> MovingHitbox {
 	m := transform * pivot(obj.transform)
-	c1, c2 := mat_vec_mul(m, obj.hitbox.min), mat_vec_mul(m, obj.hitbox.max)
-	return {
-		aabb = {linalg.min(c1, c2), linalg.max(c1, c2)},
-		vel = precalculated_delta.? or_else get_pos_delta(obj, dt),
-		collision = obj.hitbox.collision,
+	vel := precalculated_delta.? or_else get_pos_delta(obj, dt)
+	switch shape in obj.hitbox.shape {
+	case AABB:
+		c1, c2 := mat_vec_mul(m, shape.min), mat_vec_mul(m, shape.max)
+		return {
+			shape = MovingAABB{aabb = {linalg.min(c1, c2), linalg.max(c1, c2)}, vel = vel},
+			collision = obj.hitbox.collision,
+		}
+	case Circle:
+		center := mat_vec_mul(m, shape.pos)
+		// scale radius by the x-axis scale factor baked into the matrix
+		radius := shape.radius * linalg.length(vec2{m[0, 0], m[1, 0]})
+		return {
+			shape = MovingCircle{circle = {center, radius}, vel = vel},
+			collision = obj.hitbox.collision,
+		}
 	}
+	return {collision = obj.hitbox.collision}
+}
+
+get_bounding_box_moving_hitbox :: proc(mh: MovingHitbox) -> AABB {
+	switch shape in mh.shape {
+	case MovingAABB:
+		return get_bounding_box_moving_aabb(shape)
+	case MovingCircle:
+		return get_bounding_box_moving_circle(shape)
+	}
+	return {}
+}
+
+shapes_intersect :: proc(a, b: MovingHitbox) -> bool {
+	switch shape_a in a.shape {
+	case MovingAABB:
+		switch shape_b in b.shape {
+		case MovingAABB:
+			return aabb_intersect(shape_a.aabb, shape_b.aabb)
+		case MovingCircle:
+			return circle_aabb_intersect(shape_b.circle, shape_a.aabb)
+		}
+	case MovingCircle:
+		switch shape_b in b.shape {
+		case MovingAABB:
+			return circle_aabb_intersect(shape_a.circle, shape_b.aabb)
+		case MovingCircle:
+			return circles_intersect(shape_a.circle, shape_b.circle)
+		}
+	}
+	return false
 }
 
 get_texture_aabb_for_object :: proc(obj: ^GameObject, transform: mat3) -> AABB {
@@ -145,7 +198,7 @@ remake_chunks :: proc(dt: f64) {
 		//many objects per chunk, but only 1 or 2 chunks per object
 		//objects stay in same chunks as last frame
 		//optimize for this case
-		box := get_bounding_box_moving_aabb(
+		box := get_bounding_box_moving_hitbox(
 			get_moving_hitbox_for_object(obj, game.final_transforms[h.idx].transform, dt),
 		)
 		new_chunks := get_chunks_between(
@@ -281,7 +334,7 @@ physics_update :: proc(dt: f64) {
 					game.final_transforms[h.idx].transform,
 					dt,
 				)
-				bounds := get_bounding_box_moving_aabb(moving_box)
+				bounds := get_bounding_box_moving_hitbox(moving_box)
 				append(&boxes, Handle_Hitbox{handle = h, bounds = bounds, moving_box = moving_box})
 			}
 		}
@@ -315,7 +368,7 @@ physics_update :: proc(dt: f64) {
 				if a.handle == b.handle {continue} 	//will only be useful when objects have multiple hitboxes
 				if .Collide not_in b_obj.tags {continue}
 				if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
-				if !aabb_intersect(a.moving_box, b.moving_box) {continue}
+				if !shapes_intersect(a.moving_box, b.moving_box) {continue}
 				//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
 				if a.handle in game.objects_in_multiple_chunks &&
 				   b.handle in game.objects_in_multiple_chunks {
@@ -327,7 +380,7 @@ physics_update :: proc(dt: f64) {
 					}
 				}
 				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
-				overlap := aabb_overlap(a.moving_box, b.moving_box)
+				overlap := aabb_overlap(a.bounds, b.bounds)
 				new_coll_a := AABBCollision {
 					a = h,
 					b = b.handle,
@@ -449,14 +502,14 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 			dt,
 			pos_delta,
 		)
-		obj_bounds := get_bounding_box_moving_aabb(obj_box)
+		obj_bounds := get_bounding_box_moving_hitbox(obj_box)
 		//find next collision in tilemap, setting t_min
 		t_min: f64 = 1
 		will_collide := false
-		side_min: SideName
+		normal_min: vec2
 		tile_min: TilemapTileId
 		tiles_min := make([dynamic]TilemapTileId, allocator = context.temp_allocator) //in case of ties
-		offsets_needed := [SideName]bool{}
+		push_normals := make([dynamic]vec2, allocator = context.temp_allocator) //normals for epsilon pushback
 		offset_threshold :: 1
 		tiles: TilemapIterator
 		tilemap_min, tilemap_max := get_tilemap_corners(obj_bounds)
@@ -471,16 +524,26 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 					aabb = get_tile_aabb(tile_id),
 					vel  = {0, 0},
 				}
-				t, side, _, will_be_colliding := get_time_to_collide(obj_box, tile_aabb)
+				t: f64
+				normal: vec2
+				will_be_colliding: bool
+				switch shape in obj_box.shape {
+				case MovingAABB:
+					side: SideName
+					t, side, _, will_be_colliding = get_time_to_collide(shape, tile_aabb)
+					normal = WALL_NORMALS[side]
+				case MovingCircle:
+					t, normal, _, will_be_colliding = get_time_to_collide(shape, tile_aabb)
+				}
 				if will_be_colliding {
 					if t < offset_threshold {
-						offsets_needed[side] = true
+						append(&push_normals, normal)
 					}
 					if t < t_min {
 						will_collide = true
 						t_min = t
 						clear(&tiles_min)
-						side_min = side
+						normal_min = normal
 						tile_min = tile_id
 					}
 					if t <= t_min {
@@ -492,15 +555,12 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 		obj.position += t_min * delta_frac_remaining * pos_delta //hit wall
 		obj.rotation += t_min * delta_frac_remaining * rot_delta
 		if will_collide {
-			#unroll for j in 0 ..< 4 {
-				s := SideName(j)
-				if offsets_needed[s] {
-					//push back from wall a bit
-					epsilon :: 0.001
-					obj.position += WALL_NORMALS[s] * epsilon
-				}
+			for n in push_normals {
+				//push back from wall a bit
+				epsilon :: 0.001
+				obj.position += n * epsilon
 			}
-			wall_normal := WALL_NORMALS[side_min]
+			wall_normal := normal_min
 			//glide against wall - cancel component of velocity perpendicular to wall
 			obj.velocity -= linalg.dot(obj.velocity, wall_normal) * wall_normal
 			pos_delta -= linalg.dot(pos_delta, wall_normal) * wall_normal

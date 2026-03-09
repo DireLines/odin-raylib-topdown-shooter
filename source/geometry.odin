@@ -32,6 +32,11 @@ MovingAABB :: struct {
 	vel:        vec2,
 }
 
+MovingCircle :: struct {
+	using circle: Circle,
+	vel:          vec2,
+}
+
 //point-line intersection for continuous detection
 get_time_to_collide_ray_line :: proc(ray: Ray, line: AABBSide) -> (t: f64, will_collide: bool) {
 	start, speed, wall: f64
@@ -140,14 +145,192 @@ get_time_to_collide_aabb_aabb :: proc(
 	return get_time_to_collide_ray_aabb(ray, aabb)
 }
 
-get_time_to_collide :: proc {//TODO: circles?
+// ray-circle intersection for continuous detection
+// returns (t, outward normal at hit point, is_colliding, will_be_colliding)
+get_time_to_collide_ray_circle :: proc(
+	ray: Ray,
+	circle: Circle,
+) -> (
+	t: f64,
+	normal: vec2,
+	is_colliding, will_be_colliding: bool,
+) {
+	d := ray.pos - circle.pos
+	a := linalg.dot(ray.vel, ray.vel)
+	if a == 0 {
+		return math.inf_f64(1), {}, false, false
+	}
+	b := 2 * linalg.dot(d, ray.vel)
+	c := linalg.dot(d, d) - circle.radius * circle.radius
+	discriminant := b * b - 4 * a * c
+	if discriminant < 0 {
+		return math.inf_f64(1), {}, false, false
+	}
+	sqrt_disc := math.sqrt(discriminant)
+	t1 := (-b - sqrt_disc) / (2 * a)
+	t2 := (-b + sqrt_disc) / (2 * a)
+	if t2 < 0 {
+		return math.inf_f64(1), {}, false, false
+	}
+	if t1 < 0 {
+		// ray starts inside circle
+		hit_pos := ray.pos + ray.vel * t2
+		n := linalg.normalize(hit_pos - circle.pos)
+		return t2, n, true, false
+	}
+	hit_pos := ray.pos + ray.vel * t1
+	n := linalg.normalize(hit_pos - circle.pos)
+	return t1, n, false, true
+}
+
+// circle-aabb continuous collision detection using Minkowski sum
+// the Minkowski sum of a circle and an AABB is a rounded rectangle:
+//   4 flat sides offset outward by radius, 4 quarter-circles at AABB corners
+get_time_to_collide_circle_aabb :: proc(
+	a: MovingCircle,
+	b: MovingAABB,
+) -> (
+	t: f64,
+	normal: vec2,
+	is_colliding, will_be_colliding: bool,
+) {
+	r := a.radius
+	rel_vel := a.vel - b.vel
+	ray := Ray {
+		pos = a.pos,
+		vel = rel_vel,
+	}
+
+	// already overlapping?
+	if circle_aabb_intersect(Circle{a.pos, r}, AABB{b.min, b.max}) {
+		return math.inf_f64(1), {}, true, false
+	}
+
+	t_best := math.inf_f64(1)
+	n_best: vec2
+	found := false
+
+	try_update :: #force_inline proc(
+		t_best: ^f64,
+		n_best: ^vec2,
+		found: ^bool,
+		t_new: f64,
+		n_new: vec2,
+	) {
+		if t_new > 0 && t_new < t_best^ {
+			t_best^ = t_new
+			n_best^ = n_new
+			found^ = true
+		}
+	}
+
+	// 4 flat sides of the Minkowski sum (only valid in the non-corner region)
+	t_l, will_l := get_time_to_collide_ray_line(
+		ray,
+		AABBSide {
+			start = {b.min.x - r, b.min.y},
+			length = b.max.y - b.min.y,
+			direction = .vertical,
+		},
+	)
+	if will_l {try_update(&t_best, &n_best, &found, t_l, {-1, 0})}
+
+	t_r, will_r := get_time_to_collide_ray_line(
+		ray,
+		AABBSide {
+			start = {b.max.x + r, b.min.y},
+			length = b.max.y - b.min.y,
+			direction = .vertical,
+		},
+	)
+	if will_r {try_update(&t_best, &n_best, &found, t_r, {1, 0})}
+
+	t_top, will_top := get_time_to_collide_ray_line(
+		ray,
+		AABBSide {
+			start = {b.min.x, b.min.y - r},
+			length = b.max.x - b.min.x,
+			direction = .horizontal,
+		},
+	)
+	if will_top {try_update(&t_best, &n_best, &found, t_top, {0, -1})}
+
+	t_bot, will_bot := get_time_to_collide_ray_line(
+		ray,
+		AABBSide {
+			start = {b.min.x, b.max.y + r},
+			length = b.max.x - b.min.x,
+			direction = .horizontal,
+		},
+	)
+	if will_bot {try_update(&t_best, &n_best, &found, t_bot, {0, 1})}
+
+	// 4 quarter-circles at AABB corners
+	// each is a full circle intersection, but only count hits in the correct outward sector
+	Corner :: struct {
+		pos:    vec2,
+		sx, sy: f64, // sector sign: hit must satisfy dot(d, sector) >= 0
+	}
+	corners := [4]Corner {
+		{b.min, -1, -1}, // top-left: hit must be left and above
+		{{b.max.x, b.min.y}, 1, -1}, // top-right
+		{{b.min.x, b.max.y}, -1, 1}, // bottom-left
+		{b.max, 1, 1}, // bottom-right
+	}
+	for corner in corners {
+		t_c, n_c, _, will_c := get_time_to_collide_ray_circle(ray, Circle{corner.pos, r})
+		if will_c {
+			hit_pos := ray.pos + rel_vel * t_c
+			d := hit_pos - corner.pos
+			// only count the hit if it's in the outward sector of this corner
+			if d.x * corner.sx >= 0 && d.y * corner.sy >= 0 {
+				try_update(&t_best, &n_best, &found, t_c, n_c)
+			}
+		}
+	}
+
+	if !found {return math.inf_f64(1), {}, false, false}
+	return t_best, n_best, false, true
+}
+
+// circle-circle continuous collision detection
+get_time_to_collide_circle_circle :: proc(
+	a, b: MovingCircle,
+) -> (
+	t: f64,
+	normal: vec2,
+	is_colliding, will_be_colliding: bool,
+) {
+	ray := Ray {
+		pos = a.pos,
+		vel = a.vel - b.vel,
+	}
+	combined := Circle {
+		pos    = b.pos,
+		radius = a.radius + b.radius,
+	}
+	return get_time_to_collide_ray_circle(ray, combined)
+}
+
+get_time_to_collide :: proc {
 	get_time_to_collide_aabb_aabb,
 	get_time_to_collide_ray_aabb,
 	get_time_to_collide_ray_line,
+	get_time_to_collide_ray_circle,
+	get_time_to_collide_circle_aabb,
+	get_time_to_collide_circle_circle,
 }
 
 aabb_intersect :: proc(a, b: AABB) -> bool {
 	return (a.min.x <= b.max.x && a.max.x >= b.min.x) && (a.min.y <= b.max.y && a.max.y >= b.min.y)
+}
+circles_intersect :: proc(a, b: Circle) -> bool {
+	return linalg.distance(a.pos, b.pos) <= a.radius + b.radius
+}
+circle_aabb_intersect :: proc(c: Circle, a: AABB) -> bool {
+	// closest point on AABB to circle center
+	closest := linalg.clamp(c.pos, a.min, a.max)
+	return linalg.distance(c.pos, closest) <= c.radius
 }
 aabb_overlap :: proc(a, b: AABB) -> AABB {
 	return {min = linalg.max(a.min, b.min), max = linalg.min(a.max, b.max)}
@@ -498,6 +681,15 @@ is_point_in_triangle :: proc(p, a, b, c: vec2) -> bool {
 	return a_cross_b_has_positive_z(bc, bp) == ab_x_ap_has_positive_z
 }
 
+
+// bounds of moving circle for broad phase detection
+get_bounding_box_moving_circle :: proc(mc: MovingCircle) -> AABB {
+	start_min := mc.pos - mc.radius
+	start_max := mc.pos + mc.radius
+	end_min := mc.pos + mc.vel - mc.radius
+	end_max := mc.pos + mc.vel + mc.radius
+	return {linalg.min(start_min, end_min), linalg.max(start_max, end_max)}
+}
 
 // bounds of moving aabb for broad phase detection
 get_bounding_box_moving_aabb :: proc(moving_box: MovingAABB) -> AABB {

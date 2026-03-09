@@ -62,6 +62,7 @@ EnemyState :: enum {
 Player :: struct {
 	health: int,
 	state:  AliveDeadState,
+	score:  int,
 }
 Enemy :: struct {
 	health:         int,
@@ -340,7 +341,7 @@ atomic_chair_start :: proc() {
 			pivot = {64, 64},
 		},
 		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, box = {{-29, -45}, {29, 44}}}, //relative to object's pivot
+		hitbox = {layer = .Player, shape = Circle{{0, 0}, 64}}, //relative to object's pivot
 		render_info = {
 			color = rl.WHITE,
 			texture = atlas_textures[.Squatman0],
@@ -348,7 +349,7 @@ atomic_chair_start :: proc() {
 		},
 		animation = initial_animation_state(make_animation(.Squatman_Idle, 3)),
 		tags = {.Player, .Collide, .Sprite},
-		variant = Player{5, .Alive},
+		variant = Player{5, .Alive, 0},
 	}
 	player_handle := spawn_object(player_def)
 	game.player_handle = player_handle
@@ -577,6 +578,8 @@ atomic_chair_update :: proc(dt: f64) {
 							//did we just kill?
 							if e.health <= 0 {
 								e.state = .Dead
+								player := object_inst(player, Player)
+								player.score += 1
 							}
 						case .Player:
 							should_kill_bullet = true
@@ -691,7 +694,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		name = "enemy",
 		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
 		tags = {.Enemy, .Collide, .Sprite},
-		hitbox = {layer = .Enemy, box = {{-45, -45}, {45, 45}}}, //relative to object's pivot
+		hitbox = {layer = .Enemy, shape = AABB{{-45, -45}, {45, 45}}}, //relative to object's pivot
 		linear_drag = ENEMY_LINEAR_DRAG,
 		render_layer = uint(RenderLayer.Enemy),
 		variant = Enemy {
@@ -729,7 +732,7 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectH
 		transform = {position = pos, rotation = 0, scale = scale, pivot = (tex_dims / 2)},
 		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
 		velocity = vel,
-		hitbox = {layer = layer, box = {min = -(tex_dims / 2), max = tex_dims / 2}},
+		hitbox = {layer = layer, shape = AABB{min = -(tex_dims / 2), max = tex_dims / 2}},
 		tags = {.Bullet, .Collide, .Sprite},
 		variant = Bullet{nil, .Alive},
 	}
