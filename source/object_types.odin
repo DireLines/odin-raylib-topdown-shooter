@@ -8,8 +8,16 @@ GameObjectInst :: struct($T: typeid) {
 	using obj: ^GameObject,
 	using var: ^T,
 }
-object_inst :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
+object_inst_from_obj_ptr :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
 	return GameObjectInst(T){o, &o.variant.(T)}
+}
+object_inst_from_handle :: proc(h: GameObjectHandle, $T: typeid) -> GameObjectInst(T) {
+	o := hm.get(&game.objects, h)
+	return object_inst_from_obj_ptr(o, T)
+}
+object_inst :: proc {
+	object_inst_from_handle,
+	object_inst_from_obj_ptr,
 }
 
 all_objects_with_tags :: proc(

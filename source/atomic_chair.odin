@@ -25,6 +25,17 @@ BULLET_KNOCKBACK_STRENGTH :: 10
 ENEMY_LINEAR_DRAG :: 5.0
 ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
 
+GameSpecificGlobalState :: struct {
+	clicked_ui_object:  Maybe(GameObjectHandle),
+	menu_state:         MenuState,
+	menu_container:     GameObjectHandle,
+	global_tilemap:     Tilemap,
+	//we load the map immediately, but need to remember
+	//where to spawn the player when the player object is spawned later
+	player_spawn_point: vec2,
+	player_handle:      GameObjectHandle,
+}
+
 //object tags
 //these are mostly game-specific boolean tags on objects
 //GameObjects can have any set of these tags, encoded using a bit_set[ObjectTag] called `tags`
@@ -77,7 +88,8 @@ Bullet :: struct {
 }
 UIButton :: struct {
 	min_scale, max_scale: vec2,
-	on_click:             proc(info: ButtonCallbackInfo),
+	on_click_start:       proc(info: ButtonCallbackInfo), //triggered when mouse button down and hovering button
+	on_click:             proc(info: ButtonCallbackInfo), //triggered when mouse button up and hovering button - most of the time this is what you want
 }
 DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
@@ -86,6 +98,7 @@ GameObjectVariant :: union {
 	Enemy,
 	Bullet,
 	UIButton,
+	UISlider,
 }
 GameSpecificProps :: struct {
 	current_string:         string,
@@ -294,6 +307,7 @@ handle_ui_buttons :: proc() {
 			game.final_transforms[button_handle.idx].transform,
 		)
 		hovering := is_point_in_aabb(mouse_screen_pos, screen_aabb)
+		//TODO skip this stuff if there is another active UI interaction such as being in the middle of a slider drag
 		scale_target := button.min_scale
 		if hovering {
 			scale_target = button.max_scale
@@ -311,6 +325,19 @@ handle_ui_buttons :: proc() {
 		if click_confirmed {
 			button.on_click({game, button, button_handle})
 		}
+	}
+}
+handle_ui_sliders :: proc() {
+	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
+	it := hm.make_iter(&game.objects)
+	for slider, slider_handle in all_objects_with_variant(&it, UISlider) {
+		//TODO
+		if game.clicked_ui_object != slider_handle {continue}
+		//put handle position x at mouse pointer x
+		handle := object_inst(slider.handle_handle, UIButton)
+		handle.position.x = clamp(mouse_screen_pos.x, slider.min_value, slider.max_value)
+		//clamp to min and max display x
+		//if mouse button is up, stop dragging and set slider value to screen_pos_to_slider_value(current handle position x)
 	}
 }
 
@@ -687,7 +714,7 @@ EnemyType :: enum {
 	Basic,
 }
 spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
-	body := GameObject {
+	enemy := GameObject {
 		name = "enemy",
 		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
 		tags = {.Enemy, .Collide, .Sprite},
@@ -703,20 +730,19 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 			{},
 		},
 	}
-	body.texture = atlas_textures[.Enemy_Face]
-	body.color = rl.WHITE
+	enemy.texture = atlas_textures[.Enemy_Face]
+	enemy.color = rl.WHITE
 	obj_name := "enemy"
 	//TODO other stuff that varies per enemy type like different textures / animation states
 	switch enemy_type {
 	case .Basic:
 		obj_name = "basic enemy"
 	}
-	body.name = fmt.aprint(obj_name)
-	body_handle := spawn_object(body)
-	enemy := hm.get(&game.objects, body_handle)
+	enemy.name = fmt.aprint(obj_name)
+	enemy_handle := spawn_object(enemy)
 	AVG_LETTER_WIDTH :: 20 * (1.25 / BASE_WINDOW_WIDTH)
 	AVG_LETTER_HEIGHT :: 30 * (1.25 / BASE_WINDOW_WIDTH)
-	return body_handle
+	return enemy_handle
 }
 
 spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectHandle) {
@@ -748,4 +774,74 @@ apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
 play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
 	rl.SetSoundVolume(sound, volume)
 	rl.PlaySound(sound)
+}
+
+UISlider :: struct {
+	min_value, current_value, max_value, default_value: f64,
+	left_pos, right_pos:                                f64, //screen coords, for display
+	on_set_value:                                       proc(info: SliderCallbackInfo),
+	handle_handle:                                      GameObjectHandle,
+}
+SliderCallbackInfo :: struct {
+	game:          ^Game,
+	button:        GameObjectInst(UIButton),
+	button_handle: GameObjectHandle,
+	new_value:     f64,
+}
+spawn_ui_slider :: proc(
+	pos: vec2,
+	slider_length: f64,
+	handle_texture: TextureName,
+	text: string,
+	slider_info: UISlider,
+) -> GameObjectHandle {
+
+	handle_tex := atlas_textures[handle_texture]
+	handle_scale := vec2{0.9, 0.9}
+	handle_def := GameObject {
+		name = fmt.aprint(text, "slider handle"),
+		transform = {
+			position = pos,
+			rotation = 0,
+			scale = {0.9, 0.9},
+			pivot = vec2{handle_tex.rect.width, handle_tex.rect.height} / 2,
+		},
+		render_info = {
+			texture = handle_tex,
+			color = rl.WHITE,
+			render_layer = uint(RenderLayer.UI),
+			text_render_info = {font_size = 72},
+		},
+		display_current_string = true,
+		tags = {.Sprite, .Text},
+		variant = UIButton {
+			min_scale = handle_scale,
+			max_scale = {handle_scale.x * 1.3, handle_scale.y},
+			on_click_start = proc(info: ButtonCallbackInfo) {
+				//TODO set slider to dragging on LMB down, set slider to not dragging and set value on LMB up
+				slider := object_inst(
+					info.button.associated_objects["slider"].(GameObjectHandle),
+					UISlider,
+				)
+			},
+		},
+		parent_handle = game.screen_space_parent_handle,
+	}
+	slider_info := slider_info
+	handle_object: ^GameObject
+	slider_info.handle_handle, handle_object = spawn_and_return_object(handle_def)
+	slider_def := GameObject {
+		name = fmt.aprint(text, "slider"),
+		current_string = text,
+		transform = {
+			position = pos,
+			rotation = 0,
+			scale = {0.9, 0.9},
+			pivot = vec2{handle_tex.rect.width, handle_tex.rect.height} / 2,
+		},
+		variant = slider_info,
+	}
+	slider_handle, slider_object := spawn_and_return_object(slider_def)
+	handle_object.associated_objects["slider"] = slider_handle
+	return spawn_object(slider_def)
 }
