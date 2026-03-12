@@ -43,6 +43,8 @@ compile-perf: #build with verbose compiler output to troubleshoot slow compiles 
 	odin build $(MAIN_DIR) -out:$(EXE) -show-timings -show-more-timings -o:speed
 atlas: #run build script to generate atlas.png and atlas.odin from the textures folder
 	odin run source/atlas_builder
+palette: #open the atlas palette viewer (zoomable/pannable, hover to inspect, click to copy name)
+	odin run source/palette_tool
 
 # --- Hot reload ---
 
@@ -115,7 +117,7 @@ deploy: #deploy build/web to GitHub Pages (gh-pages branch)
 
 web-deploy: web deploy #build for web then deploy to GitHub Pages
 
-.PHONY: help run speed release debug mem perf compile-perf atlas \
+.PHONY: help run speed release debug mem perf compile-perf atlas palette \
        hot-reload hot-reload-libs hot-reload-dll hot-reload-exe hot-reload-run web \
        deploy web-deploy
 
