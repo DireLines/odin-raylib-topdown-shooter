@@ -182,7 +182,7 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 		texture = atlas_textures[.Block_Green_Kenney_New_Platformer_Pack_1_1_Large],
 		render_layer = uint(RenderLayer.Ceiling),
 		wall_render_info = RenderInfo {
-			texture = atlas_textures[.Darkrock],
+			texture = atlas_textures[.Drawing_Brush_Large_Kenney_Cursor_Pack_Outline_Big],
 			render_layer = uint(RenderLayer.Floor),
 		},
 	},
