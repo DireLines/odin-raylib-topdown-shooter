@@ -314,7 +314,6 @@ main_menu_update :: proc(dt: f64) {
 	handle_ui_buttons()
 	handle_ui_sliders()
 	timer->time("handle ui")
-	print(rl.GetMasterVolume())
 	game.main_camera.position += {30, 40} * dt
 	if game.render_counter % 300 == 0 {
 		game.main_camera.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
