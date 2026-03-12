@@ -233,7 +233,10 @@ asset_name :: proc(path: string) -> string {
 	textures_prefix := TEXTURES_DIR + "/"
 	if idx := strings.index(path, textures_prefix); idx >= 0 {
 		rel = path[idx + len(textures_prefix):]
+		filename := slashpath.name(rel)
 		rel = strings.trim_suffix(rel, slashpath.ext(rel)) // strip only extension, keep subdirs
+		rel = strings.trim_suffix(rel, slashpath.name(rel)) // strip only extension, keep subdirs
+		rel = strings.concatenate({filename, "_", rel})
 		rel, _ = strings.replace_all(rel, "/", "_")
 		rel, _ = strings.replace_all(rel, "-", "_")
 		rel, _ = strings.replace_all(rel, ".", "_")

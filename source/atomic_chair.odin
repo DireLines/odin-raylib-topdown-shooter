@@ -172,14 +172,14 @@ TileType :: enum {
 //properties of each type of tile
 TILE_PROPERTIES := [TileType]TileTypeInfo {
 	.None = {
-		texture      = atlas_textures[.Kenney_New_Platformer_Pack_1_1_Large_Block_Strong_Empty],
+		texture      = atlas_textures[.Block_Strong_Empty_Kenney_New_Platformer_Pack_1_1_Large],
 		render_layer = uint(RenderLayer.Floor),
 		color        = {128, 128, 128, 255},
 		// random_rotation = true,
 	},
 	.Wall = {
 		collision = {layer = .Wall, resolve = true, trigger_events = true},
-		texture = atlas_textures[.Kenney_New_Platformer_Pack_1_1_Large_Block_Green],
+		texture = atlas_textures[.Block_Green_Kenney_New_Platformer_Pack_1_1_Large],
 		render_layer = uint(RenderLayer.Ceiling),
 		wall_render_info = RenderInfo {
 			texture = atlas_textures[.Darkrock],
