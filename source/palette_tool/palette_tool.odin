@@ -55,7 +55,7 @@ main :: proc() {
 	}
 	defer rl.UnloadTexture(atlas)
 
-	zoom: f32 = 1.0
+	zoom: f32 = 0.2
 	pan := rl.Vector2{}
 	hovered_idx := -1
 
