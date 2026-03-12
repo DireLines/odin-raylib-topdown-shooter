@@ -19,6 +19,7 @@ package atlas_builder
 import ase "aseprite"
 import "base:runtime"
 import "core:c"
+import "core:encoding/json"
 import "core:fmt"
 import "core:image/png"
 import "core:log"
@@ -161,6 +162,27 @@ Image :: struct {
 	height: int,
 }
 
+// Describes a tiled spritesheet loaded from a .json sidecar file.
+// The sidecar file must have the same path as the PNG, differing only in extension.
+//
+// JSON format:
+//   {"tile_width":16,"tile_height":16,"columns":49,"rows":22,"spacing_x":1,"spacing_y":1}
+Spritesheet_Desc :: struct {
+	tile_width:  int,
+	tile_height: int,
+	columns:     int,
+	rows:        int,
+	spacing_x:   int,
+	spacing_y:   int,
+}
+
+Loaded_Spritesheet :: struct {
+	pixels:    []Color,
+	size:      Vec2i,
+	desc:      Spritesheet_Desc,
+	base_name: string,
+}
+
 draw_image :: proc(to: ^Image, from: Image, source: Rect, pos: Vec2i) {
 	for sxf in 0 ..< source.width {
 		for syf in 0 ..< source.height {
@@ -247,7 +269,17 @@ asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", name)
 }
 
-load_font :: proc(filename: string) ->  Font {// Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
+load_font :: proc(filename: string) ->  // Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
+
+
+	// Build a set of all PNG paths so description-file matching doesn't need os.exists.
+
+
+	// First pass: detect spritesheet description files (.json) and load their paired PNGs.
+	// A description file pairs with a PNG that shares the same path up to the extension.
+
+
+	Font {// Second pass: regular texture/tileset processing, skipping PNGs consumed by spritesheets.
 	font_data, err := os.read_entire_file(filename, context.allocator)
 	if err != nil {
 		log.warnf("oops no font found at %s", filename)
@@ -610,6 +642,57 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	append(textures, td)
 }
 
+load_spritesheet_desc_json :: proc(data: []byte) -> (desc: Spritesheet_Desc, ok: bool) {
+	if err := json.unmarshal(data, &desc); err != nil {
+		return {}, false
+	}
+	ok = desc.tile_width > 0 && desc.tile_height > 0 && desc.columns > 0 && desc.rows > 0
+	return
+}
+
+load_spritesheet :: proc(png_path: string, desc: Spritesheet_Desc) -> (sheet: Loaded_Spritesheet, ok: bool) {
+	data, err := os.read_entire_file(png_path, context.allocator)
+	if err != nil {
+		log.error("Failed loading spritesheet PNG", png_path)
+		return {}, false
+	}
+	defer delete(data)
+
+	img, img_err := png.load_from_bytes(data)
+	if img_err != nil {
+		log.error("PNG load error for spritesheet", img_err)
+		return {}, false
+	}
+	defer png.destroy(img)
+
+	if img.depth != 8 || (img.channels != 3 && img.channels != 4) {
+		log.error("Only 8 bpp, 3 or 4 channel PNG supported for spritesheet", png_path)
+		return {}, false
+	}
+
+	pixels: []Color
+	if img.channels == 3 {
+		pixels = make([]Color, img.width * img.height)
+		for i in 0 ..< img.width * img.height {
+			pixels[i] = {
+				img.pixels.buf[i * 3],
+				img.pixels.buf[i * 3 + 1],
+				img.pixels.buf[i * 3 + 2],
+				255,
+			}
+		}
+	} else {
+		pixels = slice.clone(slice.reinterpret([]Color, img.pixels.buf[:]))
+	}
+
+	return {
+		pixels    = pixels,
+		size      = {img.width, img.height},
+		desc      = desc,
+		base_name = asset_name(png_path),
+	}, true
+}
+
 default_context: runtime.Context
 
 dir_path_to_file_infos :: proc(path: string) -> []os.File_Info {
@@ -660,6 +743,43 @@ main :: proc() {
 	})
 
 	tileset: Tileset
+	spritesheets: [dynamic]Loaded_Spritesheet
+
+	all_png_paths := make(map[string]bool)
+	for fi in file_infos {
+		if strings.has_suffix(fi.name, ".png") {
+			all_png_paths[fi.fullpath] = true
+		}
+	}
+
+	spritesheet_png_paths := make(map[string]bool)
+	for fi in file_infos {
+		if !strings.has_suffix(fi.name, ".json") {
+			continue
+		}
+		desc_data, derr := os.read_entire_file(fi.fullpath, context.allocator)
+		if derr != nil {
+			continue
+		}
+		desc, desc_ok := load_spritesheet_desc_json(desc_data)
+		delete(desc_data)
+		if !desc_ok {
+			continue
+		}
+		ext := slashpath.ext(fi.fullpath)
+		base := strings.trim_suffix(fi.fullpath, ext)
+		png_path := strings.concatenate({base, ".png"}, context.temp_allocator)
+		if !(png_path in all_png_paths) {
+			continue
+		}
+		sheet, sheet_ok := load_spritesheet(png_path, desc)
+		if !sheet_ok {
+			continue
+		}
+		spritesheet_png_paths[png_path] = true
+		append(&spritesheets, sheet)
+	}
+
 
 	for fi in file_infos {
 		is_ase := strings.has_suffix(fi.name, ".ase") || strings.has_suffix(fi.name, ".aseprite")
@@ -671,7 +791,9 @@ main :: proc() {
 			} else if is_ase {
 				load_ase_texture_data(path, &textures, &animations)
 			} else if is_png {
-				load_png_texture_data(path, &textures)
+				if !(path in spritesheet_png_paths) {
+					load_png_texture_data(path, &textures)
+				}
 			}
 		}
 	}
@@ -684,6 +806,7 @@ main :: proc() {
 		Glyph,
 		Tile,
 		ShapesTexture,
+		Spritesheet,
 	}
 
 
@@ -719,7 +842,7 @@ main :: proc() {
 	}
 
 	rect_id_type :: proc(i: i32) -> PackRectType {
-		return PackRectType(i >> 29)
+		return PackRectType(u32(i) >> 29)
 	}
 
 	file_infos = dir_path_to_file_infos(FONTS_DIR)
@@ -754,6 +877,17 @@ main :: proc() {
 				id = make_pack_rect_id(i32(idx), .Texture),
 				w = stbrp.Coord(t.source_size.x) + 1,
 				h = stbrp.Coord(t.source_size.y) + 1,
+			},
+		)
+	}
+
+	for sheet, idx in spritesheets {
+		append(
+			&pack_rects,
+			stbrp.Rect {
+				id = make_pack_rect_id(i32(idx), .Spritesheet),
+				w = stbrp.Coord(sheet.size.x) + 1,
+				h = stbrp.Coord(sheet.size.y) + 1,
 			},
 		)
 	}
@@ -888,6 +1022,47 @@ main :: proc() {
 			}
 
 			append(&atlas_fonts[f_idx].glyphs, ag)
+		case .Spritesheet:
+			idx := idx_from_rect_id(rp.id)
+			sheet := spritesheets[idx]
+
+			sheet_img := Image {
+				data   = sheet.pixels,
+				width  = sheet.size.x,
+				height = sheet.size.y,
+			}
+
+			draw_image(&atlas, sheet_img, Rect{0, 0, sheet.size.x, sheet.size.y}, {int(rp.x), int(rp.y)})
+
+			atlas_pos := Vec2i{int(rp.x), int(rp.y)}
+			desc := sheet.desc
+			for row in 0 ..< desc.rows {
+				for col in 0 ..< desc.columns {
+					x := col * (desc.tile_width + desc.spacing_x)
+					y := row * (desc.tile_height + desc.spacing_y)
+
+					all_blank := true
+					blank_check: for py in y ..< y + desc.tile_height {
+						for px in x ..< x + desc.tile_width {
+							if get_image_pixel(sheet_img, px, py) != {} {
+								all_blank = false
+								break blank_check
+							}
+						}
+					}
+
+					if all_blank {
+						continue
+					}
+
+					ar := Atlas_Texture_Rect {
+						rect = {atlas_pos.x + x, atlas_pos.y + y, desc.tile_width, desc.tile_height},
+						size = {desc.tile_width, desc.tile_height},
+						name = fmt.tprintf("%s_%d_%d", sheet.base_name, row, col),
+					}
+					append(&atlas_textures, ar)
+				}
+			}
 		case .Tile:
 			ix, iy := x_y_from_tile_id(rp.id)
 
