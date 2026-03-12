@@ -267,9 +267,30 @@ main_menu_start :: proc() {
 			atomic_chair_start()
 		},
 	)
-	//TODO volume sliders
-	//TODO credits
-	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar}
+	//volume sliders
+	vol_slider, vol_slider_handle := spawn_ui_slider(
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3},
+		.White,
+		"VOL",
+		UISlider {
+			min_value = 0,
+			max_value = 1,
+			default_value = f64(rl.GetMasterVolume()),
+			current_value = f64(rl.GetMasterVolume()),
+			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
+			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
+			on_set_value = proc(info: SliderCallbackInfo) {
+				rl.SetMasterVolume(f32(info.new_value))
+			},
+		},
+	)
+	//TODO credits button
+	main_menu_objects := [dynamic]GameObjectHandle {
+		play_button,
+		titlebar,
+		vol_slider,
+		vol_slider_handle,
+	}
 	when ODIN_OS != .JS {
 		quit_button := spawn_button(
 			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
@@ -291,7 +312,9 @@ main_menu_start :: proc() {
 main_menu_update :: proc(dt: f64) {
 	timer := timer()
 	handle_ui_buttons()
-	timer->time("handle buttons")
+	handle_ui_sliders()
+	timer->time("handle ui")
+	print(rl.GetMasterVolume())
 	game.main_camera.position += {30, 40} * dt
 	if game.render_counter % 300 == 0 {
 		game.main_camera.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
@@ -302,6 +325,7 @@ handle_ui_buttons :: proc() {
 	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
 	it := hm.make_iter(&game.objects)
 	for button, button_handle in all_objects_with_variant(&it, UIButton) {
+		if game.clicked_ui_object != nil && game.clicked_ui_object != button_handle {continue}
 		screen_aabb := get_texture_aabb_for_object(
 			button.obj,
 			game.final_transforms[button_handle.idx].transform,
@@ -321,8 +345,12 @@ handle_ui_buttons :: proc() {
 			button.color = rl.BLACK
 			button.text_color = BEE_YELLOW
 		}
-		click_confirmed := hovering && rl.IsMouseButtonReleased(.LEFT)
-		if click_confirmed {
+		click_started := hovering && rl.IsMouseButtonPressed(.LEFT)
+		if click_started && button.on_click_start != nil {
+			button.on_click_start({game, button, button_handle})
+		}
+		click_released := hovering && rl.IsMouseButtonReleased(.LEFT)
+		if click_released && button.on_click != nil {
 			button.on_click({game, button, button_handle})
 		}
 	}
@@ -331,13 +359,23 @@ handle_ui_sliders :: proc() {
 	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
 	it := hm.make_iter(&game.objects)
 	for slider, slider_handle in all_objects_with_variant(&it, UISlider) {
-		//TODO
 		if game.clicked_ui_object != slider_handle {continue}
-		//put handle position x at mouse pointer x
 		handle := object_inst(slider.handle_handle, UIButton)
-		handle.position.x = clamp(mouse_screen_pos.x, slider.min_value, slider.max_value)
-		//clamp to min and max display x
-		//if mouse button is up, stop dragging and set slider value to screen_pos_to_slider_value(current handle position x)
+		handle.position.x = clamp(mouse_screen_pos.x, slider.left_pos, slider.right_pos)
+		if rl.IsMouseButtonReleased(.LEFT) {
+			game.clicked_ui_object = nil
+			new_value_frac :=
+				(handle.position.x - slider.left_pos) / (slider.right_pos - slider.left_pos)
+			new_value := slider.min_value + new_value_frac * (slider.max_value - slider.min_value)
+			slider.on_set_value(
+				SliderCallbackInfo {
+					game = game,
+					slider = slider,
+					slider_handle = slider_handle,
+					new_value = new_value,
+				},
+			)
+		}
 	}
 }
 
@@ -394,7 +432,23 @@ pause_menu_start :: proc() {
 			game.paused = false
 		},
 	)
-	//TODO volume sliders
+	//volume sliders
+	vol_slider, vol_slider_handle := spawn_ui_slider(
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3},
+		.White,
+		"VOL",
+		UISlider {
+			min_value = 0,
+			max_value = 1,
+			default_value = f64(rl.GetMasterVolume()),
+			current_value = f64(rl.GetMasterVolume()),
+			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
+			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
+			on_set_value = proc(info: SliderCallbackInfo) {
+				rl.SetMasterVolume(f32(info.new_value))
+			},
+		},
+	)
 	main_menu_button := spawn_button(
 		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 		.White,
@@ -407,7 +461,12 @@ pause_menu_start :: proc() {
 			main_menu_start()
 		},
 	)
-	pause_menu_objects := [dynamic]GameObjectHandle{resume_button, main_menu_button}
+	pause_menu_objects := [dynamic]GameObjectHandle {
+		resume_button,
+		main_menu_button,
+		vol_slider,
+		vol_slider_handle,
+	}
 	menu_container := hm.get(&game.objects, game.menu_container)
 	menu_container.associated_objects["pause_menu"] = pause_menu_objects
 }
@@ -456,6 +515,7 @@ atomic_chair_update :: proc(dt: f64) {
 	// main game logic
 	timer := timer()
 	handle_ui_buttons()
+	handle_ui_sliders()
 	if game.paused {
 		//TODO additional pause menu stuff?
 		return
@@ -784,45 +844,42 @@ UISlider :: struct {
 }
 SliderCallbackInfo :: struct {
 	game:          ^Game,
-	button:        GameObjectInst(UIButton),
-	button_handle: GameObjectHandle,
+	slider:        GameObjectInst(UISlider),
+	slider_handle: GameObjectHandle,
 	new_value:     f64,
 }
 spawn_ui_slider :: proc(
 	pos: vec2,
-	slider_length: f64,
 	handle_texture: TextureName,
 	text: string,
 	slider_info: UISlider,
-) -> GameObjectHandle {
+) -> (
+	slider_handle, handle_handle: GameObjectHandle,
+) {
 
 	handle_tex := atlas_textures[handle_texture]
-	handle_scale := vec2{0.9, 0.9}
+	handle_scale := vec2{0.3, 0.9}
 	handle_def := GameObject {
 		name = fmt.aprint(text, "slider handle"),
 		transform = {
-			position = pos,
+			position = pos, //TODO: place at the screen pos corresponding to default value
 			rotation = 0,
-			scale = {0.9, 0.9},
-			pivot = vec2{handle_tex.rect.width, handle_tex.rect.height} / 2,
+			scale    = handle_scale,
+			pivot    = vec2{handle_tex.rect.width, handle_tex.rect.height} / 2,
 		},
 		render_info = {
 			texture = handle_tex,
 			color = rl.WHITE,
 			render_layer = uint(RenderLayer.UI),
-			text_render_info = {font_size = 72},
 		},
-		display_current_string = true,
 		tags = {.Sprite, .Text},
 		variant = UIButton {
 			min_scale = handle_scale,
-			max_scale = {handle_scale.x * 1.3, handle_scale.y},
+			max_scale = {handle_scale.x, handle_scale.y * 1.5},
 			on_click_start = proc(info: ButtonCallbackInfo) {
-				//TODO set slider to dragging on LMB down, set slider to not dragging and set value on LMB up
-				slider := object_inst(
-					info.button.associated_objects["slider"].(GameObjectHandle),
-					UISlider,
-				)
+				slider_handle := info.button.associated_objects["slider"].(GameObjectHandle)
+				slider := object_inst(slider_handle, UISlider)
+				game.clicked_ui_object = slider_handle
 			},
 		},
 		parent_handle = game.screen_space_parent_handle,
@@ -841,7 +898,8 @@ spawn_ui_slider :: proc(
 		},
 		variant = slider_info,
 	}
-	slider_handle, slider_object := spawn_and_return_object(slider_def)
+	slider_object: ^GameObject
+	slider_handle, slider_object = spawn_and_return_object(slider_def)
 	handle_object.associated_objects["slider"] = slider_handle
-	return spawn_object(slider_def)
+	return spawn_object(slider_def), slider_info.handle_handle
 }
