@@ -1,12 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./build_hot_reload.sh:*)",
-      "Bash(odin root:*)",
+      "Bash(odin:*)",
       "Bash(ls:*)",
+<<<<<<< Updated upstream
       "Bash(make hot:*)",
       "Bash(make:*)",
       "Bash(odin build:*)"
+=======
+      "Bash(make:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)"
+>>>>>>> Stashed changes
     ]
   }
 }

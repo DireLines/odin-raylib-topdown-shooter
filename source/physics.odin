@@ -1,6 +1,5 @@
 package game
 
-import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:slice"
@@ -29,12 +28,14 @@ CollisionProperties :: struct {
 }
 
 Hitbox :: struct {
-	using box:       AABB,
-	using collision: CollisionProperties,
+	using box:       	AABB,
+	circle:		 				Maybe(Circle),
+	using collision: 	CollisionProperties,
 }
 MovingHitbox :: struct {
-	using box:       MovingAABB,
-	using collision: CollisionProperties,
+	using box:       	MovingAABB,
+	circle:		 				Maybe(Circle),
+	using collision: 	CollisionProperties,
 }
 
 CollisionEventType :: enum {
@@ -46,13 +47,23 @@ AABBDiscreteCollision :: struct {
 	a_vel, b_vel: vec2,
 	overlap:      AABB,
 }
+CircleDiscreteCollision :: struct {
+	normal:		vec2,
+	depth: 		f64,
+}
 AABBContinuousCollision :: struct {
+	time_to_collide: f64,
+	normal:          vec2,
+}
+CircleContinuousCollision :: struct {
 	time_to_collide: f64,
 	normal:          vec2,
 }
 AABBCollisionInfo :: union {
 	AABBDiscreteCollision,
 	AABBContinuousCollision,
+	CircleDiscreteCollision,
+	CircleContinuousCollision,
 }
 
 AABBCollision :: struct {
@@ -168,8 +179,8 @@ remake_chunks :: proc(dt: f64) {
 	}
 }
 
-
 ObjectPair :: [2]GameObjectHandle
+
 Handle_Hitbox :: struct {
 	handle:     GameObjectHandle,
 	bounds:     AABB,
@@ -178,6 +189,12 @@ Handle_Hitbox :: struct {
 
 physics_update :: proc(dt: f64) {
 	timer := timer()
+	init_collisions(&timer)
+	move_objects(dt, &timer)
+	detect_collisions(dt, &timer)
+}
+
+init_collisions :: proc(timer: ^Timer) {
 	//set up initial state of collisions
 	{
 		for _, v in game.collisions {
@@ -204,6 +221,9 @@ physics_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("initialize collisions")
+}
+
+move_objects :: proc(dt: f64, timer: ^Timer) {
 	objects_tested := make(map[GameObjectHandle]struct{}, allocator = context.temp_allocator)
 	collisions_found_in_multiple_chunks := make(
 		map[ObjectPair]struct{},
@@ -264,7 +284,10 @@ physics_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("move objects")
-	//collision phase
+}
+
+detect_collisions :: proc(dt: f64, timer: ^Timer) {
+//collision phase
 	//for each chunk:
 	//    gather, sort and sweep boxes in chunk
 	//    sort and sweep boxes in chunk
@@ -307,6 +330,7 @@ physics_update :: proc(dt: f64) {
 			//find object's hitbox within boxes
 			a_idx, ok := handle_to_hitbox_index[h]
 			a := boxes[a_idx]
+			a_obj := hm.get(&game.objects, a.handle)
 			//check other objects in chunk (discrete)
 			BOXES: for j := a_idx + 1; j < len(boxes); j += 1 {
 				b := boxes[j]
@@ -317,15 +341,16 @@ physics_update :: proc(dt: f64) {
 				if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
 				if !aabb_intersect(a.moving_box, b.moving_box) {continue}
 				//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
-				if a.handle in game.objects_in_multiple_chunks &&
-				   b.handle in game.objects_in_multiple_chunks {
-					pair := ObjectPair{a.handle, b.handle}
-					if pair in collisions_found_in_multiple_chunks {
-						continue
-					} else {
-						collisions_found_in_multiple_chunks[pair] = {}
-					}
-				}
+				// if a.handle in game.objects_in_multiple_chunks &&
+				//    b.handle in game.objects_in_multiple_chunks {
+				// 	pair := ObjectPair{a.handle, b.handle}
+				// 	if pair in collisions_found_in_multiple_chunks {
+				// 		continue
+				// 	} else {
+				// 		collisions_found_in_multiple_chunks[pair] = {}
+				// 	}
+				// }
+				a_circle, a_has_circle := a_obj.hitbox.circle.?
 				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
 				overlap := aabb_overlap(a.moving_box, b.moving_box)
 				new_coll_a := AABBCollision {
