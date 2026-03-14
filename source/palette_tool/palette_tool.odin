@@ -30,7 +30,6 @@ main :: proc() {
 		for e in entries {delete(e.name)}
 		delete(entries)
 	}
-
 	for tex, name in game.atlas_textures {
 		r := tex.rect
 		if r.width <= 0 || r.height <= 0 {continue}
@@ -43,6 +42,7 @@ main :: proc() {
 		)
 	}
 
+	rl.SetTraceLogLevel(.NONE) //shup up
 	rl.SetConfigFlags({.WINDOW_RESIZABLE})
 	rl.InitWindow(1280, 800, "Atlas Palette")
 	defer rl.CloseWindow()

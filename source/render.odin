@@ -18,11 +18,18 @@ RenderInfo :: struct {
 	render_layer:           uint,
 }
 
+TextAlignment :: enum {
+	Center,
+	Left,
+	Right,
+}
+
 //these are Maybes because the zero value is undesirable for all of them, need to know when to use a default
 TextRenderInfo :: struct {
-	font:       Maybe(rl.Font),
-	text_color: Maybe(rl.Color),
-	font_size:  Maybe(f32),
+	font:           Maybe(rl.Font),
+	text_color:     Maybe(rl.Color),
+	font_size:      Maybe(f32),
+	text_alignment: TextAlignment,
 }
 
 ShaderName :: enum {
@@ -161,24 +168,30 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	if .Text in obj.tags {
 		font := obj.font.? or_else global_default_font
 		font_size := obj.font_size.? or_else DEFAULT_FONT_SIZE
-		cur_string_cstr := strings.clone_to_cstring(obj.current_string, context.temp_allocator)
+		cur_string_cstr := strings.clone_to_cstring(obj.text, context.temp_allocator)
 		current_string_dims := rl.MeasureTextEx(font, cur_string_cstr, font_size, 0)
 		total_dims := current_string_dims
 		word_start_pos := mat_vec_mul(final_transform.transform, obj.pivot)
 		if !final_transform.screen_space {
 			word_start_pos = world_to_screen(word_start_pos, screen_conversion)
 		}
-		word_start_pos -= vec2f32_to_vec2(total_dims) / 2
-		if obj.display_current_string {
-			rl.DrawTextEx(
-				font,
-				cur_string_cstr,
-				vec2_to_vec2f32(word_start_pos),
-				font_size,
-				0,
-				obj.text_color.? or_else rl.GREEN,
-			)
+		switch obj.text_alignment {
+		case .Center:
+			word_start_pos -= vec2f32_to_vec2(total_dims) / 2
+		case .Left:
+			word_start_pos.y -= f64(total_dims.y) / 2
+		case .Right:
+			word_start_pos -= vec2f32_to_vec2(total_dims)
+			word_start_pos.y += f64(total_dims.y) / 2
 		}
+		rl.DrawTextEx(
+			font,
+			cur_string_cstr,
+			vec2_to_vec2f32(word_start_pos),
+			font_size,
+			0,
+			obj.text_color.? or_else rl.GREEN,
+		)
 	}
 }
 
