@@ -284,6 +284,7 @@ main_menu_start :: proc() {
 			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
 			on_set_value = proc(info: SliderCallbackInfo) {
 				rl.SetMasterVolume(f32(info.new_value))
+				rl.PlaySound(get_sound("hit.wav"))
 			},
 		},
 	)
@@ -449,6 +450,7 @@ pause_menu_start :: proc() {
 			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
 			on_set_value = proc(info: SliderCallbackInfo) {
 				rl.SetMasterVolume(f32(info.new_value))
+				rl.PlaySound(get_sound("hit.wav"))
 			},
 		},
 	)
