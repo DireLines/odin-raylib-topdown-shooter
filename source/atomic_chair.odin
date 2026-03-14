@@ -26,7 +26,7 @@ ENEMY_LINEAR_DRAG :: 5.0
 ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
 
 UI_MAIN_FONT_SIZE :: 72
-UI_SECONDARY_FONT_SIZE :: 36
+UI_SECONDARY_FONT_SIZE :: 42
 
 GameSpecificGlobalState :: struct {
 	clicked_ui_object:  Maybe(GameObjectHandle),
@@ -104,8 +104,7 @@ GameObjectVariant :: union {
 	UISlider,
 }
 GameSpecificProps :: struct {
-	current_string:         string,
-	display_current_string: bool,
+	text: string,
 }
 
 //type constraints to check at runtime (outside of Odin's type system)
@@ -374,6 +373,7 @@ handle_ui_sliders :: proc() {
 			frac = (val_target - slider.min_value) / (slider.max_value - slider.min_value)
 		}
 		handle.position.x = slider.left_pos + frac * (slider.right_pos - slider.left_pos)
+		handle.text = fmt.aprintf("%d", int(math.round(frac * 100)))
 		if rl.IsMouseButtonReleased(.LEFT) {
 			game.clicked_ui_object = nil
 			new_value_frac :=
@@ -759,7 +759,7 @@ spawn_button :: proc(
 	min_scale :: vec2{3, 0.9}
 	button_obj := GameObject {
 		name = fmt.aprint(text, "button"),
-		current_string = text,
+		text = text,
 		transform = {
 			position = pos,
 			rotation = 0,
@@ -772,7 +772,6 @@ spawn_button :: proc(
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {font_size = UI_MAIN_FONT_SIZE},
 		},
-		display_current_string = true,
 		tags = {.Sprite, .Text},
 		variant = UIButton {
 			min_scale = min_scale,
@@ -874,7 +873,7 @@ spawn_ui_slider :: proc(
 ) {
 
 	handle_tex := atlas_textures[handle_texture]
-	handle_scale := vec2{0.3, 0.9}
+	handle_scale := vec2{0.75, 0.9}
 	default_frac :=
 		(slider_info.default_value - slider_info.min_value) /
 		(slider_info.max_value - slider_info.min_value)
@@ -882,6 +881,7 @@ spawn_ui_slider :: proc(
 		slider_info.left_pos + default_frac * (slider_info.right_pos - slider_info.left_pos)
 	handle_def := GameObject {
 		name = fmt.aprint(text, "slider handle"),
+		text = fmt.aprintf("%d", int(math.round(default_frac * 100))),
 		transform = {
 			position = {handle_x, pos.y},
 			rotation = 0,
@@ -892,11 +892,12 @@ spawn_ui_slider :: proc(
 			texture = handle_tex,
 			color = rl.WHITE,
 			render_layer = uint(RenderLayer.UI),
+			text_render_info = {font_size = UI_SECONDARY_FONT_SIZE, text_color = rl.BLACK},
 		},
 		tags = {.Sprite, .Text},
 		variant = UIButton {
 			min_scale = handle_scale,
-			max_scale = {handle_scale.x, handle_scale.y * 1.5},
+			max_scale = {handle_scale.x, handle_scale.y},
 			on_click_start = proc(info: ButtonCallbackInfo) {
 				slider_handle := info.button.associated_objects["slider"].(GameObjectHandle)
 				slider := object_inst(slider_handle, UISlider)
@@ -934,7 +935,7 @@ spawn_ui_slider :: proc(
 	LABEL_PIXEL_PADDING :: 50
 	label_def := GameObject {
 		name = fmt.aprint(text, "slider label"),
-		current_string = text,
+		text = text,
 		transform = {
 			position = {slider_info.left_pos - LABEL_PIXEL_PADDING, pos.y},
 			scale = {1, 1},
@@ -949,7 +950,6 @@ spawn_ui_slider :: proc(
 				font_size = UI_MAIN_FONT_SIZE,
 			},
 		},
-		display_current_string = true,
 		tags = {.Text},
 		parent_handle = game.screen_space_parent_handle,
 	}

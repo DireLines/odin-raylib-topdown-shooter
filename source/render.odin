@@ -168,7 +168,7 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	if .Text in obj.tags {
 		font := obj.font.? or_else global_default_font
 		font_size := obj.font_size.? or_else DEFAULT_FONT_SIZE
-		cur_string_cstr := strings.clone_to_cstring(obj.current_string, context.temp_allocator)
+		cur_string_cstr := strings.clone_to_cstring(obj.text, context.temp_allocator)
 		current_string_dims := rl.MeasureTextEx(font, cur_string_cstr, font_size, 0)
 		total_dims := current_string_dims
 		word_start_pos := mat_vec_mul(final_transform.transform, obj.pivot)
@@ -184,16 +184,14 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 			word_start_pos -= vec2f32_to_vec2(total_dims)
 			word_start_pos.y += f64(total_dims.y) / 2
 		}
-		if obj.display_current_string {
-			rl.DrawTextEx(
-				font,
-				cur_string_cstr,
-				vec2_to_vec2f32(word_start_pos),
-				font_size,
-				0,
-				obj.text_color.? or_else rl.GREEN,
-			)
-		}
+		rl.DrawTextEx(
+			font,
+			cur_string_cstr,
+			vec2_to_vec2f32(word_start_pos),
+			font_size,
+			0,
+			obj.text_color.? or_else rl.GREEN,
+		)
 	}
 }
 
