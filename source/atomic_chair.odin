@@ -274,7 +274,7 @@ main_menu_start :: proc() {
 		"VOL",
 		UISlider {
 			min_value = 0,
-			max_value = 1,
+			max_value = 2,
 			default_value = f64(rl.GetMasterVolume()),
 			current_value = f64(rl.GetMasterVolume()),
 			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
@@ -438,7 +438,7 @@ pause_menu_start :: proc() {
 		"VOL",
 		UISlider {
 			min_value = 0,
-			max_value = 1,
+			max_value = 2,
 			default_value = f64(rl.GetMasterVolume()),
 			current_value = f64(rl.GetMasterVolume()),
 			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
@@ -858,13 +858,18 @@ spawn_ui_slider :: proc(
 
 	handle_tex := atlas_textures[handle_texture]
 	handle_scale := vec2{0.3, 0.9}
+	default_frac :=
+		(slider_info.default_value - slider_info.min_value) /
+		(slider_info.max_value - slider_info.min_value)
+	handle_x :=
+		slider_info.left_pos + default_frac * (slider_info.right_pos - slider_info.left_pos)
 	handle_def := GameObject {
 		name = fmt.aprint(text, "slider handle"),
 		transform = {
-			position = pos, //TODO: place at the screen pos corresponding to default value
+			position = {handle_x, pos.y},
 			rotation = 0,
-			scale    = handle_scale,
-			pivot    = vec2{handle_tex.rect.width, handle_tex.rect.height} / 2,
+			scale = handle_scale,
+			pivot = vec2{handle_tex.rect.width, handle_tex.rect.height} / 2,
 		},
 		render_info = {
 			texture = handle_tex,
@@ -900,5 +905,5 @@ spawn_ui_slider :: proc(
 	slider_object: ^GameObject
 	slider_handle, slider_object = spawn_and_return_object(slider_def)
 	handle_object.associated_objects["slider"] = slider_handle
-	return spawn_object(slider_def), slider_info.handle_handle
+	return slider_handle, slider_info.handle_handle
 }
