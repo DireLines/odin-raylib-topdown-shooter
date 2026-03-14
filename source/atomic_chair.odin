@@ -356,7 +356,7 @@ handle_ui_sliders :: proc() {
 			frac = (val_target - slider.min_value) / (slider.max_value - slider.min_value)
 		}
 		handle.position.x = slider.left_pos + frac * (slider.right_pos - slider.left_pos)
-		handle.text = get_slider_handle_text(slider.show_percentage, frac, val_target)
+		handle.text = get_slider_handle_text(frac, val_target, slider.show_percentage)
 		if rl.IsMouseButtonReleased(.LEFT) {
 			game.clicked_ui_object = nil
 			new_value_frac :=
@@ -831,7 +831,7 @@ SliderCallbackInfo :: struct {
 	new_value:     f64,
 }
 
-get_slider_handle_text :: proc(show_percentage: bool, frac, val: f64) -> string {
+get_slider_handle_text :: proc(frac, val: f64, show_percentage: bool = false) -> string {
 	return(
 		show_percentage ? fmt.aprintf("%d", int(math.round(frac * 100))) : fmt.aprintf("%.2f", val) \
 	)
@@ -855,9 +855,9 @@ spawn_ui_slider :: proc(
 	handle_def := GameObject {
 		name = fmt.aprint(text, "slider handle"),
 		text = get_slider_handle_text(
-			slider_info.show_percentage,
 			default_frac,
 			slider_info.default_value,
+			slider_info.show_percentage,
 		),
 		transform = {
 			position = {handle_x, pos.y},
