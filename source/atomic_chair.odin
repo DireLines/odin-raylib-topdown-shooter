@@ -270,32 +270,14 @@ main_menu_start :: proc() {
 		},
 	)
 	//volume sliders
-	vol_slider, vol_slider_handle, vol_label := spawn_ui_slider(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3},
-		.White,
-		"VOL",
-		UISlider {
-			min_value = 0,
-			max_value = 2,
-			snap_increment = 0.2,
-			show_percentage = true,
-			default_value = f64(rl.GetMasterVolume()),
-			current_value = f64(rl.GetMasterVolume()),
-			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
-			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
-			on_set_value = proc(info: SliderCallbackInfo) {
-				rl.SetMasterVolume(f32(info.new_value))
-				rl.PlaySound(get_sound("hit.wav"))
-			},
-		},
-	)
+	master_vol_slider, master_vol_slider_handle, master_vol_label := spawn_master_vol_slider()
 	//TODO credits button
 	main_menu_objects := [dynamic]GameObjectHandle {
 		play_button,
 		titlebar,
-		vol_slider,
-		vol_slider_handle,
-		vol_label,
+		master_vol_slider,
+		master_vol_slider_handle,
+		master_vol_label,
 	}
 	when ODIN_OS != .JS {
 		quit_button := spawn_button(
@@ -446,25 +428,7 @@ pause_menu_start :: proc() {
 		},
 	)
 	//volume sliders
-	vol_slider, vol_slider_handle, vol_label := spawn_ui_slider(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3},
-		.White,
-		"VOL",
-		UISlider {
-			min_value = 0,
-			max_value = 2,
-			snap_increment = 0.2,
-			show_percentage = true,
-			default_value = f64(rl.GetMasterVolume()),
-			current_value = f64(rl.GetMasterVolume()),
-			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
-			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
-			on_set_value = proc(info: SliderCallbackInfo) {
-				rl.SetMasterVolume(f32(info.new_value))
-				rl.PlaySound(get_sound("hit.wav"))
-			},
-		},
-	)
+	master_vol_slider, master_vol_slider_handle, master_vol_label := spawn_master_vol_slider()
 	main_menu_button := spawn_button(
 		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 		.White,
@@ -480,9 +444,9 @@ pause_menu_start :: proc() {
 	pause_menu_objects := [dynamic]GameObjectHandle {
 		resume_button,
 		main_menu_button,
-		vol_slider,
-		vol_slider_handle,
-		vol_label,
+		master_vol_slider,
+		master_vol_slider_handle,
+		master_vol_label,
 	}
 	menu_container := hm.get(&game.objects, game.menu_container)
 	menu_container.associated_objects["pause_menu"] = pause_menu_objects
@@ -968,4 +932,26 @@ spawn_ui_slider :: proc(
 	}
 	label_handle = spawn_object(label_def)
 	return slider_handle, slider_info.handle_handle, label_handle
+}
+
+spawn_master_vol_slider :: proc() -> (GameObjectHandle, GameObjectHandle, GameObjectHandle) {
+	return spawn_ui_slider(
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3},
+		.White,
+		"VOL",
+		UISlider {
+			min_value = 0,
+			max_value = 2,
+			snap_increment = 0.2,
+			show_percentage = true,
+			default_value = f64(rl.GetMasterVolume()),
+			current_value = f64(rl.GetMasterVolume()),
+			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
+			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
+			on_set_value = proc(info: SliderCallbackInfo) {
+				rl.SetMasterVolume(f32(info.new_value))
+				rl.PlaySound(get_sound("hit.wav"))
+			},
+		},
+	)
 }
