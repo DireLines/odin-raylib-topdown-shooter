@@ -368,10 +368,10 @@ handle_ui_sliders :: proc() {
 		handle := object_inst(slider.handle_handle, UIButton)
 		frac := (mouse_screen_pos.x - slider.left_pos) / (slider.right_pos - slider.left_pos)
 		frac = clamp(frac, 0, 1)
-		value := slider.min_value + frac * (slider.max_value - slider.min_value)
+		val_target := slider.min_value + frac * (slider.max_value - slider.min_value)
 		if slider.snap_increment > 0 {
-			value = math.round(value / slider.snap_increment) * slider.snap_increment
-			frac = (value - slider.min_value) / (slider.max_value - slider.min_value)
+			val_target = math.round(val_target / slider.snap_increment) * slider.snap_increment
+			frac = (val_target - slider.min_value) / (slider.max_value - slider.min_value)
 		}
 		handle.position.x = slider.left_pos + frac * (slider.right_pos - slider.left_pos)
 		if rl.IsMouseButtonReleased(.LEFT) {
