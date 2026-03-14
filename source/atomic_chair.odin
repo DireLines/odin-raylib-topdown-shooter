@@ -278,6 +278,7 @@ main_menu_start :: proc() {
 			min_value = 0,
 			max_value = 2,
 			snap_increment = 0.2,
+			show_percentage = true,
 			default_value = f64(rl.GetMasterVolume()),
 			current_value = f64(rl.GetMasterVolume()),
 			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
@@ -373,7 +374,7 @@ handle_ui_sliders :: proc() {
 			frac = (val_target - slider.min_value) / (slider.max_value - slider.min_value)
 		}
 		handle.position.x = slider.left_pos + frac * (slider.right_pos - slider.left_pos)
-		handle.text = fmt.aprintf("%d", int(math.round(frac * 100)))
+		handle.text = get_slider_handle_text(slider.show_percentage, frac, val_target)
 		if rl.IsMouseButtonReleased(.LEFT) {
 			game.clicked_ui_object = nil
 			new_value_frac :=
@@ -453,6 +454,7 @@ pause_menu_start :: proc() {
 			min_value = 0,
 			max_value = 2,
 			snap_increment = 0.2,
+			show_percentage = true,
 			default_value = f64(rl.GetMasterVolume()),
 			current_value = f64(rl.GetMasterVolume()),
 			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
@@ -854,6 +856,7 @@ UISlider :: struct {
 	min_value, current_value, max_value, default_value: f64,
 	left_pos, right_pos:                                f64, //screen coords, for display
 	snap_increment:                                     f64, //0 = no snapping
+	show_percentage:                                    bool,
 	on_set_value:                                       proc(info: SliderCallbackInfo),
 	handle_handle:                                      GameObjectHandle,
 }
@@ -862,6 +865,12 @@ SliderCallbackInfo :: struct {
 	slider:        GameObjectInst(UISlider),
 	slider_handle: GameObjectHandle,
 	new_value:     f64,
+}
+
+get_slider_handle_text :: proc(show_percentage: bool, frac, val: f64) -> string {
+	return(
+		show_percentage ? fmt.aprintf("%d", int(math.round(frac * 100))) : fmt.aprintf("%.2f", val) \
+	)
 }
 spawn_ui_slider :: proc(
 	pos: vec2,
@@ -881,7 +890,11 @@ spawn_ui_slider :: proc(
 		slider_info.left_pos + default_frac * (slider_info.right_pos - slider_info.left_pos)
 	handle_def := GameObject {
 		name = fmt.aprint(text, "slider handle"),
-		text = fmt.aprintf("%d", int(math.round(default_frac * 100))),
+		text = get_slider_handle_text(
+			slider_info.show_percentage,
+			default_frac,
+			slider_info.default_value,
+		),
 		transform = {
 			position = {handle_x, pos.y},
 			rotation = 0,
