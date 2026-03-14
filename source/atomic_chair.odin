@@ -278,6 +278,7 @@ main_menu_start :: proc() {
 		UISlider {
 			min_value = 0,
 			max_value = 2,
+			snap_increment = 0.2,
 			default_value = f64(rl.GetMasterVolume()),
 			current_value = f64(rl.GetMasterVolume()),
 			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
@@ -365,7 +366,14 @@ handle_ui_sliders :: proc() {
 	for slider, slider_handle in all_objects_with_variant(&it, UISlider) {
 		if game.clicked_ui_object != slider_handle {continue}
 		handle := object_inst(slider.handle_handle, UIButton)
-		handle.position.x = clamp(mouse_screen_pos.x, slider.left_pos, slider.right_pos)
+		frac := (mouse_screen_pos.x - slider.left_pos) / (slider.right_pos - slider.left_pos)
+		frac = clamp(frac, 0, 1)
+		value := slider.min_value + frac * (slider.max_value - slider.min_value)
+		if slider.snap_increment > 0 {
+			value = math.round(value / slider.snap_increment) * slider.snap_increment
+			frac = (value - slider.min_value) / (slider.max_value - slider.min_value)
+		}
+		handle.position.x = slider.left_pos + frac * (slider.right_pos - slider.left_pos)
 		if rl.IsMouseButtonReleased(.LEFT) {
 			game.clicked_ui_object = nil
 			new_value_frac :=
@@ -444,6 +452,7 @@ pause_menu_start :: proc() {
 		UISlider {
 			min_value = 0,
 			max_value = 2,
+			snap_increment = 0.2,
 			default_value = f64(rl.GetMasterVolume()),
 			current_value = f64(rl.GetMasterVolume()),
 			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
@@ -845,6 +854,7 @@ play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
 UISlider :: struct {
 	min_value, current_value, max_value, default_value: f64,
 	left_pos, right_pos:                                f64, //screen coords, for display
+	snap_increment:                                     f64, //0 = no snapping
 	on_set_value:                                       proc(info: SliderCallbackInfo),
 	handle_handle:                                      GameObjectHandle,
 }
