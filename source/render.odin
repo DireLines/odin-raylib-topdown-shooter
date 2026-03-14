@@ -18,11 +18,18 @@ RenderInfo :: struct {
 	render_layer:           uint,
 }
 
+TextAlignment :: enum {
+	Center,
+	Left,
+	Right,
+}
+
 //these are Maybes because the zero value is undesirable for all of them, need to know when to use a default
 TextRenderInfo :: struct {
-	font:       Maybe(rl.Font),
-	text_color: Maybe(rl.Color),
-	font_size:  Maybe(f32),
+	font:           Maybe(rl.Font),
+	text_color:     Maybe(rl.Color),
+	font_size:      Maybe(f32),
+	text_alignment: TextAlignment,
 }
 
 ShaderName :: enum {
@@ -168,7 +175,15 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		if !final_transform.screen_space {
 			word_start_pos = world_to_screen(word_start_pos, screen_conversion)
 		}
-		word_start_pos -= vec2f32_to_vec2(total_dims) / 2
+		switch obj.text_alignment {
+		case .Center:
+			word_start_pos -= vec2f32_to_vec2(total_dims) / 2
+		case .Left:
+			word_start_pos.y -= f64(total_dims.y) / 2
+		case .Right:
+			word_start_pos -= vec2f32_to_vec2(total_dims)
+			word_start_pos.y += f64(total_dims.y) / 2
+		}
 		if obj.display_current_string {
 			rl.DrawTextEx(
 				font,
