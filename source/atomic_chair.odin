@@ -937,7 +937,7 @@ spawn_ui_slider :: proc(
 
 spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 	master_vol_slider, master_vol_handle, master_vol_label := spawn_ui_slider(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * (2 + f64(2) / 3)},
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2.75},
 		.White,
 		"VOL",
 		UISlider {
@@ -956,7 +956,7 @@ spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 		},
 	)
 	music_vol_slider, music_vol_handle, music_vol_label := spawn_ui_slider(
-	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * (3 + f64(1) / 3)},
+	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3.25},
 	.White,
 	"MUSIC",
 	UISlider {
