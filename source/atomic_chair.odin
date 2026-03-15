@@ -278,7 +278,7 @@ main_menu_start :: proc() {
 	}
 	when ODIN_OS != .JS {
 		quit_button := spawn_button(
-			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 5},
+			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 			.White,
 			"QUIT",
 			proc(info: ButtonCallbackInfo) {
@@ -429,7 +429,7 @@ pause_menu_start :: proc() {
 	//volume sliders
 	slider_handles := spawn_vol_sliders()
 	main_menu_button := spawn_button(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 5},
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 		.White,
 		"QUIT",
 		proc(info: ButtonCallbackInfo) {
@@ -847,7 +847,7 @@ spawn_ui_slider :: proc(
 ) {
 
 	handle_tex := atlas_textures[handle_texture]
-	handle_scale := vec2{0.75, 0.9}
+	handle_scale := vec2{0.7, 0.4}
 	default_frac :=
 		(slider_info.default_value - slider_info.min_value) /
 		(slider_info.max_value - slider_info.min_value)
@@ -937,7 +937,7 @@ spawn_ui_slider :: proc(
 
 spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 	master_vol_slider, master_vol_handle, master_vol_label := spawn_ui_slider(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3},
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * (2 + f64(2) / 3)},
 		.White,
 		"VOL",
 		UISlider {
@@ -956,7 +956,7 @@ spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 		},
 	)
 	music_vol_slider, music_vol_handle, music_vol_label := spawn_ui_slider(
-	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
+	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * (3 + f64(1) / 3)},
 	.White,
 	"MUSIC",
 	UISlider {
