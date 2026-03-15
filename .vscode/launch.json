@@ -2,92 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run",
-      "type": "lldb-dap",
+      "name": "Debug Odin (LLDB)",
+      "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/game.exe",
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: run"
-    },
-    {
-      "name": "Speed",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: speed"
-    },
-    {
-      "name": "Release",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: release"
-    },
-    {
-      "name": "Debug",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: debug"
-    },
-    {
-      "name": "Mem (tracking allocator)",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: mem"
-    },
-    {
-      "name": "Perf (timing logs)",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: perf"
-    },
-    {
-      "name": "Compile Perf",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: compile-perf"
-    },
-    {
-      "name": "Atlas Builder",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/atlas_builder.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: atlas"
-    },
-    {
-      "name": "Palette Tool",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/palette_tool.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: palette"
-    },
-    {
-      "name": "Hot Reload",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game_hot_reload.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: hot-reload"
-    },
-    {
-      "name": "Hot Reload Run",
-      "type": "lldb-dap",
-      "request": "launch",
-      "program": "${workspaceFolder}/game_hot_reload.exe",
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make: hot-reload-run"
+      "preLaunchTask": "make: debug",
+      "stopOnEntry": false
     }
   ]
 }

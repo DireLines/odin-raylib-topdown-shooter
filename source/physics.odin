@@ -330,140 +330,21 @@ detect_collisions :: proc(dt: f64, timer: ^Timer) {
 			//find object's hitbox within boxes
 			a_idx, ok := handle_to_hitbox_index[h]
 			a := boxes[a_idx]
-			a_obj := hm.get(&game.objects, a.handle)
 			//check other objects in chunk (discrete)
-			BOXES: for j := a_idx + 1; j < len(boxes); j += 1 {
-				b := boxes[j]
-				b_obj := hm.get(&game.objects, b.handle)
-				if b.bounds.min.x > a.bounds.max.x {continue OBJECTS_IN_CHUNK}
-				if a.handle == b.handle {continue} 	//will only be useful when objects have multiple hitboxes
-				if .Collide not_in b_obj.tags {continue}
-				if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
-				if !aabb_intersect(a.moving_box, b.moving_box) {continue}
-				//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
-				// if a.handle in game.objects_in_multiple_chunks &&
-				//    b.handle in game.objects_in_multiple_chunks {
-				// 	pair := ObjectPair{a.handle, b.handle}
-				// 	if pair in collisions_found_in_multiple_chunks {
-				// 		continue
-				// 	} else {
-				// 		collisions_found_in_multiple_chunks[pair] = {}
-				// 	}
-				// }
-				a_circle, a_has_circle := a_obj.hitbox.circle.?
-				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
-				overlap := aabb_overlap(a.moving_box, b.moving_box)
-				new_coll_a := AABBCollision {
-					a = h,
-					b = b.handle,
-					info = AABBDiscreteCollision{overlap = overlap},
-				}
-				new_coll_b := AABBCollision {
-					a = b.handle,
-					b = h,
-					info = AABBDiscreteCollision{overlap = overlap},
-				}
-				add_collision(h, new_coll_a)
-				add_collision(b.handle, new_coll_b)
-				add_collision :: proc(h: GameObjectHandle, collision: AABBCollision) {
-					collision := collision
-					if h not_in game.collisions {
-						game.collisions[h] = make([dynamic]AABBCollision)
-					}
-					was_colliding_before := false
-					if h in game.prev_frame.collisions {
-						for prev_collision, i in game.prev_frame.collisions[h] {
-							#partial switch prev_coll_handle in prev_collision.b {
-							case GameObjectHandle:
-								if prev_collision.type != .stop &&
-								   prev_coll_handle == collision.b {
-									was_colliding_before = true
-								}
-							}
-						}
-					}
-					collision.type = .start
-					if was_colliding_before {
-						collision.type = .stay
-					}
-					current_coll_idx := -1
-					for current_coll, i in game.collisions[h] {
-						#partial switch coll_handle in current_coll.b {
-						case GameObjectHandle:
-							if coll_handle == collision.b {
-								current_coll_idx = i
-							}
-						}
-					}
-					if current_coll_idx == -1 {
-						append(&game.collisions[h], collision)
-					} else {
-						game.collisions[h][current_coll_idx] = collision
-					}
-				}
-			}
+			resolve_discrete_collisions(a_idx, boxes)
 		}
 	}
 	timer->time("detect collisions")
 }
 
-move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
-	PhysicsUpdate :: struct {
-		accel, vel, pos_delta:                 vec2,
-		angular_accel, angular_vel, rot_delta: f64,
-	}
-	kinematic_update :: proc(obj: ^GameObject, dt: f64) -> (phys: PhysicsUpdate) {
-		//linear
-		phys.accel = obj.acceleration - obj.linear_drag * obj.velocity
-		phys.vel = obj.velocity + phys.accel * dt
-		phys.pos_delta = 0.5 * phys.accel * dt * dt + obj.velocity * dt + obj.inst_velocity * dt
-		//angular
-		phys.angular_accel = obj.angular_acceleration - obj.angular_drag * obj.angular_velocity
-		phys.angular_vel = obj.angular_velocity + phys.angular_accel * dt
-		phys.rot_delta =
-			0.5 * phys.angular_accel * dt * dt +
-			obj.angular_velocity * dt +
-			obj.inst_angular_velocity * dt
-		return phys
-	}
-	apply_phys_update :: proc(obj: ^GameObject, phys: PhysicsUpdate) {
-		obj.acceleration = phys.accel
-		obj.velocity = phys.vel
-		obj.angular_acceleration = phys.angular_accel
-		obj.angular_velocity = phys.angular_vel
-	}
-	//reset instantaneous data for next frame
-	reset_instantaneous_state :: proc(obj: ^GameObject) {
-		obj.acceleration = {0, 0}
-		obj.inst_velocity = {0, 0}
-		obj.angular_acceleration = 0
-		obj.inst_angular_velocity = 0
-	}
+resolve_continuous_collisions :: proc(
+	obj_handle: GameObjectHandle,
+	obj: ^GameObject,
+	pos_delta: ^vec2,
+	rot_delta: ^f64,
+	dt: f64,
+) -> [dynamic]AABBCollision {
 	collisions := make([dynamic]AABBCollision, allocator = context.temp_allocator)
-	obj := hm.get(&game.objects, obj_handle)
-	phys_update := kinematic_update(obj, dt)
-	pos_delta := phys_update.pos_delta
-	rot_delta := phys_update.rot_delta
-	if pos_delta == {0, 0} && rot_delta == 0 {
-		return {}
-	}
-	apply_phys_update(obj, phys_update)
-	//objects which cannot collide apply the motion normally
-	if .Collide not_in obj.tags {
-		obj.position += pos_delta
-		obj.rotation += rot_delta
-		reset_instantaneous_state(obj)
-		return {}
-	}
-	//objects which can collide do this up to 4 times:
-	//	check to see if they will collide with a wall
-	//  if so:
-	//		record the collision
-	//		apply movement up to the collision
-	//		cancel out component of velocity heading into wall
-	//		subtract time taken to collide from remaining time
-	//	else:
-	//		move normally for the remaining time, exit loop
 	t_remaining := dt
 	for i := 0; i < 4 && t_remaining > 0; i += 1 {
 		delta_frac_remaining := t_remaining / dt
@@ -472,7 +353,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 			obj,
 			game.final_transforms[obj_handle.idx].transform,
 			dt,
-			pos_delta,
+			pos_delta^,
 		)
 		obj_bounds := get_bounding_box_moving_aabb(obj_box)
 		//find next collision in tilemap, setting t_min
@@ -514,8 +395,8 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 				}
 			}
 		}
-		obj.position += t_min * delta_frac_remaining * pos_delta //hit wall
-		obj.rotation += t_min * delta_frac_remaining * rot_delta
+		obj.position += t_min * delta_frac_remaining * pos_delta^ //hit wall
+		obj.rotation += t_min * delta_frac_remaining * rot_delta^
 		if will_collide {
 			#unroll for j in 0 ..< 4 {
 				s := SideName(j)
@@ -528,7 +409,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 			wall_normal := WALL_NORMALS[side_min]
 			//glide against wall - cancel component of velocity perpendicular to wall
 			obj.velocity -= linalg.dot(obj.velocity, wall_normal) * wall_normal
-			pos_delta -= linalg.dot(pos_delta, wall_normal) * wall_normal
+			pos_delta^ -= linalg.dot(pos_delta^, wall_normal) * wall_normal
 			t_remaining -= t_min * t_remaining //we now try to keep moving for the rest of the time in this new direction
 			for tile_id in tiles_min {
 				collision := AABBCollision {
@@ -544,11 +425,140 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 			}
 		} else {
 			t_remaining = 0 //we have fully moved in this direction for the rest of the time step
-			reset_instantaneous_state(obj)
 		}
 		// update transform matrix for obj because it will be used next iteration
 		game.final_transforms[obj_handle.idx].transform =
 			apply(obj.transform) * unpivot(obj.transform)
 	}
+	return collisions
+}
+
+resolve_discrete_collisions :: proc(
+	a_idx: int,
+	boxes: [dynamic]Handle_Hitbox,
+) {
+	a := boxes[a_idx]
+	for j := a_idx + 1; j < len(boxes); j += 1 {
+		b := boxes[j]
+		if b.bounds.min.x > a.bounds.max.x {break}
+		if a.handle == b.handle {continue} 	//will only be useful when objects have multiple hitboxes
+		b_obj := hm.get(&game.objects, b.handle)
+		if .Collide not_in b_obj.tags {continue}
+		if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
+		if !aabb_intersect(a.moving_box, b.moving_box) {continue}
+		//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
+		// if a.handle in game.objects_in_multiple_chunks &&
+		//    b.handle in game.objects_in_multiple_chunks {
+		// 	pair := ObjectPair{a.handle, b.handle}
+		// 	if pair in collisions_found_in_multiple_chunks {
+		// 		continue
+		// 	} else {
+		// 		collisions_found_in_multiple_chunks[pair] = {}
+		// 	}
+		// }
+		a_circle, a_has_circle := hm.get(&game.objects, a.handle).hitbox.circle.?
+		//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
+		overlap := aabb_overlap(a.moving_box, b.moving_box)
+		new_coll_a := AABBCollision {
+			a = a.handle,
+			b = b.handle,
+			info = AABBDiscreteCollision{overlap = overlap},
+		}
+		new_coll_b := AABBCollision {
+			a = b.handle,
+			b = a.handle,
+			info = AABBDiscreteCollision{overlap = overlap},
+		}
+		add_collision(a.handle, new_coll_a)
+		add_collision(b.handle, new_coll_b)
+		add_collision :: proc(h: GameObjectHandle, collision: AABBCollision) {
+			collision := collision
+			if h not_in game.collisions {
+				game.collisions[h] = make([dynamic]AABBCollision)
+			}
+			was_colliding_before := false
+			if h in game.prev_frame.collisions {
+				for prev_collision, i in game.prev_frame.collisions[h] {
+					#partial switch prev_coll_handle in prev_collision.b {
+					case GameObjectHandle:
+						if prev_collision.type != .stop &&
+						   prev_coll_handle == collision.b {
+							was_colliding_before = true
+						}
+					}
+				}
+			}
+			collision.type = .start
+			if was_colliding_before {
+				collision.type = .stay
+			}
+			current_coll_idx := -1
+			for current_coll, i in game.collisions[h] {
+				#partial switch coll_handle in current_coll.b {
+				case GameObjectHandle:
+					if coll_handle == collision.b {
+						current_coll_idx = i
+					}
+				}
+			}
+			if current_coll_idx == -1 {
+				append(&game.collisions[h], collision)
+			} else {
+				game.collisions[h][current_coll_idx] = collision
+			}
+		}
+	}
+}
+
+move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
+	PhysicsUpdate :: struct {
+		accel, vel, pos_delta:                 vec2,
+		angular_accel, angular_vel, rot_delta: f64,
+	}
+	kinematic_update :: proc(obj: ^GameObject, dt: f64) -> (phys: PhysicsUpdate) {
+		//linear
+		phys.accel = obj.acceleration - obj.linear_drag * obj.velocity
+		phys.vel = obj.velocity + phys.accel * dt
+		phys.pos_delta = 0.5 * phys.accel * dt * dt + obj.velocity * dt + obj.inst_velocity * dt
+		//angular
+		phys.angular_accel = obj.angular_acceleration - obj.angular_drag * obj.angular_velocity
+		phys.angular_vel = obj.angular_velocity + phys.angular_accel * dt
+		phys.rot_delta =
+			0.5 * phys.angular_accel * dt * dt +
+			obj.angular_velocity * dt +
+			obj.inst_angular_velocity * dt
+		return phys
+	}
+	apply_phys_update :: proc(obj: ^GameObject, phys: PhysicsUpdate) {
+		obj.acceleration = phys.accel
+		obj.velocity = phys.vel
+		obj.angular_acceleration = phys.angular_accel
+		obj.angular_velocity = phys.angular_vel
+	}
+	//reset instantaneous data for next frame
+	reset_instantaneous_state :: proc(obj: ^GameObject) {
+		obj.acceleration = {0, 0}
+		obj.inst_velocity = {0, 0}
+		obj.angular_acceleration = 0
+		obj.inst_angular_velocity = 0
+	}
+	obj := hm.get(&game.objects, obj_handle)
+	phys_update := kinematic_update(obj, dt)
+	pos_delta := phys_update.pos_delta
+	rot_delta := phys_update.rot_delta
+	if pos_delta == {0, 0} && rot_delta == 0 {
+		return {}
+	}
+	apply_phys_update(obj, phys_update)
+	//objects which cannot collide apply the motion normally
+	if .Collide not_in obj.tags {
+		obj.position += pos_delta
+		obj.rotation += rot_delta
+		reset_instantaneous_state(obj)
+		return {}
+	}
+	//objects which can collide resolve continuous collisions with walls
+	collisions := resolve_continuous_collisions(obj_handle, obj, &pos_delta, &rot_delta, dt)
+	reset_instantaneous_state(obj)
 	return collisions[:]
 }
