@@ -342,6 +342,7 @@ handle_ui_buttons :: proc() {
 		}
 	}
 }
+
 handle_ui_sliders :: proc() {
 	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
 	it := hm.make_iter(&game.objects)
@@ -374,7 +375,6 @@ handle_ui_sliders :: proc() {
 	}
 }
 
-
 main_menu_stop :: proc() {
 	menu_container_obj, ok := hm.get(&game.objects, game.menu_container)
 	if !ok {
@@ -405,6 +405,8 @@ atomic_chair_start :: proc() {
 			color = rl.WHITE,
 			texture = atlas_textures[.Squatman0],
 			render_layer = uint(RenderLayer.Player),
+			include_transparent_border = true,
+			keep_original_dimensions = true,
 		},
 		animation = initial_animation_state(make_animation(.Squatman_Idle, 3)),
 		tags = {.Player, .Collide, .Sprite},
@@ -564,21 +566,26 @@ atomic_chair_update :: proc(dt: f64) {
 		// cam_target := player.position + player.velocity * CAM_LEAD
 		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
 		desired_anim_name: AnimationName
+		desired_anim_speed: uint = 4
 		{
 			if abs(pos_diff.x) > 0 {
 				desired_anim_name = .Squatman_Run_Right
 			} else {
 				if pos_diff.y < 0 {
 					desired_anim_name = .Squatman_Run_Up
+					desired_anim_speed = 6
 				} else if pos_diff.y > 0 {
 					desired_anim_name = .Squatman_Run_Down
+					desired_anim_speed = 6
 				} else {
 					desired_anim_name = .Squatman_Idle
 				}
 			}
 		}
 		if desired_anim_name != player.animation.anim.name {
-			player.animation = initial_animation_state(make_animation(desired_anim_name, 4))
+			player.animation = initial_animation_state(
+				make_animation(desired_anim_name, desired_anim_speed),
+			)
 		}
 		if rl.IsKeyPressed(.R) {
 			player_take_damage(object_inst(player, Player))

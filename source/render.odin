@@ -16,8 +16,13 @@ RenderInfo :: struct {
 	color:                  rl.Color,
 	using text_render_info: TextRenderInfo,
 	render_layer:           uint,
+	using import_mode:      TextureImportMode,
 }
 
+TextureImportMode :: struct {
+	include_transparent_border: bool,
+	keep_original_dimensions:   bool,
+}
 TextAlignment :: enum {
 	Center,
 	Left,
@@ -55,22 +60,32 @@ draw_texture_quad :: proc(
 	transform: mat3,
 	color: rl.Color,
 	screen_space: bool = false,
+	keep_original_dimensions: bool = false,
 ) {
 	rlgl.Begin(rlgl.QUADS); defer rlgl.End()
 	rlgl.SetTexture(texture.id); defer rlgl.SetTexture(0)
 	rlgl.Color4ub(color.r, color.g, color.b, color.a)
+	corners := SQUARE_CORNERS
+	if keep_original_dimensions {
+		corners = [4]vec2 {
+			{0, 0}, //top left
+			{0, f64(source.height) / TEXTURE_PIXELS_PER_WORLD_UNIT}, //bottom left
+			{
+				f64(source.width) / TEXTURE_PIXELS_PER_WORLD_UNIT,
+				f64(source.height) / TEXTURE_PIXELS_PER_WORLD_UNIT,
+			}, //bottom right
+			{f64(source.width) / TEXTURE_PIXELS_PER_WORLD_UNIT, 0}, //top right
+		}
+	}
 	screen_corners: [4]vec2
 	if screen_space {
 		#unroll for i in 0 ..< 4 {
-			screen_corners[i] = mat_vec_mul(
-				transform,
-				SQUARE_CORNERS[i] * TEXTURE_PIXELS_PER_WORLD_UNIT,
-			)
+			screen_corners[i] = mat_vec_mul(transform, corners[i] * TEXTURE_PIXELS_PER_WORLD_UNIT)
 		}
 	} else {
 		#unroll for i in 0 ..< 4 {
 			screen_corners[i] = world_to_screen(
-				mat_vec_mul(transform, SQUARE_CORNERS[i] * TEXTURE_PIXELS_PER_WORLD_UNIT),
+				mat_vec_mul(transform, corners[i] * TEXTURE_PIXELS_PER_WORLD_UNIT),
 				screen_conversion,
 			)
 		}
@@ -157,12 +172,18 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	if .Sprite in obj.tags {
 		texture := atlas
 		source := obj.texture.rect
+		transform := final_transform.transform
+		if obj.include_transparent_border {
+			offset := vec2{f64(obj.texture.offset_left), f64(obj.texture.offset_top)}
+			transform = transform * translate_vec2(offset)
+		}
 		draw_texture_quad(
 			texture,
 			source,
-			final_transform.transform,
+			transform,
 			obj.color,
 			final_transform.screen_space,
+			obj.keep_original_dimensions,
 		)
 	}
 	if .Text in obj.tags {
