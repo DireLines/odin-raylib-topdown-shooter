@@ -20,7 +20,13 @@ RenderInfo :: struct {
 }
 
 TextureImportMode :: struct {
+	//whether to offset sprite to account for transparent border inside original document,
+	//which otherwise gets trimmed off when packing into atlas.
+	//usually desired for animations
 	include_transparent_border: bool,
+	//whether to map sprite to a 1x1 square in world coordinates or to the texture's actual dimensions.
+	//usually desired for animated sprites, but then since the texture determines the object's size
+	//the rest of the code needs to account for it, for hitboxes and such
 	keep_original_dimensions:   bool,
 }
 TextAlignment :: enum {
