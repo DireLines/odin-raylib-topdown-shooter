@@ -22,7 +22,6 @@ AABBSide :: struct {
 Ray :: struct {
 	pos, vel: vec2,
 }
-
 Circle :: struct {
 	pos:    vec2,
 	radius: f64,
@@ -152,20 +151,6 @@ aabb_intersect :: proc(a, b: AABB) -> bool {
 }
 aabb_overlap :: proc(a, b: AABB) -> AABB {
 	return {min = linalg.max(a.min, b.min), max = linalg.min(a.max, b.max)}
-}
-circle_intersect :: proc(a, b: Circle) -> bool {
-	dist_sq := linalg.length2(a.pos - b.pos)
-	radius_ab := a.radius + b.radius
-	return dist_sq <= radius_ab * radius_ab
-}
-circle_collision_normal :: proc(a, b: Circle) -> (normal: vec2, depth: f64) {
-	diff := a.pos - b.pos
-	dist := linalg.length(diff)
-	// normal doesn't matter when overlapping, so just assert {1, 0} I guess
-	if dist == 0 { return {1, 0}, a.radius + b.radius }
-	normal = diff / dist
-	depth = (a.radius + b.radius) - dist
-	return
 }
 aabb_to_rect :: proc(aabb: AABB) -> Rect {
 	top_left := aabb.min
