@@ -28,7 +28,6 @@ FULL_HEART_TEXTURE :: TextureName.Hud_Heart_Kenney_New_Platformer_Pack_1_1_Large
 HALF_HEART_TEXTURE :: TextureName.Hud_Heart_Half_Kenney_New_Platformer_Pack_1_1_Large
 EMPTY_HEART_TEXTURE :: TextureName.Hud_Heart_Empty_Kenney_New_Platformer_Pack_1_1_Large
 INGAME_UI_PADDING :: 20.0
-HEART_RENDER_SCALE :: 0.75
 MAX_PLAYER_HEARTS :: 3
 
 UI_MAIN_FONT_SIZE :: 72
@@ -445,14 +444,15 @@ atomic_chair_start :: proc() {
 	p.score_label_handle = spawn_object(score_label)
 
 	{
-		PADDING_BETWEEN_HEARTS :: 80.0
+		PADDING_BETWEEN_HEARTS :: 60.0
+		HEART_RENDER_SCALE :: 0.5
 		heart_tex := atlas_textures[FULL_HEART_TEXTURE]
-		for i in 0 ..< MAX_PLAYER_HEARTS {
+		for &heart_handle, i in p.heart_handles {
 			x :=
 				WINDOW_WIDTH -
 				INGAME_UI_PADDING -
 				f64(MAX_PLAYER_HEARTS - i) * PADDING_BETWEEN_HEARTS
-			p.heart_handles[i] = spawn_object(
+			heart_handle = spawn_object(
 				GameObject {
 					name = "heart",
 					transform = {
