@@ -29,11 +29,12 @@ CollisionProperties :: struct {
 }
 
 Hitbox :: struct {
-	using box:       AABB,
+	shape:       Shape,
 	using collision: CollisionProperties,
 }
+
 MovingHitbox :: struct {
-	using box:       MovingAABB,
+	moving_shape:       MovingShape,
 	using collision: CollisionProperties,
 }
 
@@ -117,10 +118,13 @@ get_moving_hitbox_for_object :: proc(
 	precalculated_delta: Maybe(vec2) = nil,
 ) -> MovingHitbox {
 	m := transform * pivot(obj.transform)
-	c1, c2 := mat_vec_mul(m, obj.hitbox.min), mat_vec_mul(m, obj.hitbox.max)
+	box := obj.hitbox.shape.(AABB)
+	c1, c2 := mat_vec_mul(m, box.min), mat_vec_mul(m, box.max)
 	return {
-		aabb = {linalg.min(c1, c2), linalg.max(c1, c2)},
-		vel = precalculated_delta.? or_else get_pos_delta(obj, dt),
+		moving_shape = MovingShape{
+			shape = AABB{linalg.min(c1, c2), linalg.max(c1, c2)},
+			vel = precalculated_delta.? or_else get_pos_delta(obj, dt),
+		},
 		collision = obj.hitbox.collision,
 	}
 }
@@ -137,6 +141,9 @@ remake_chunks :: proc(dt: f64) {
 	clear_map(&game.chunks)
 	it := hm.make_iter(&game.objects)
 	for obj, h in hm.iter(&it) {
+		if .Collide not_in obj.tags {
+			continue
+		}
 		//make sure obj is in the right chunks and only those chunks
 		//since object hitbox is a contiguous shape,
 		//it's sufficient to get the rectangle of chunk ids between those which contain the top left and bottom right corners of the box
@@ -145,8 +152,8 @@ remake_chunks :: proc(dt: f64) {
 		//many objects per chunk, but only 1 or 2 chunks per object
 		//objects stay in same chunks as last frame
 		//optimize for this case
-		box := get_bounding_box_moving_aabb(
-			get_moving_hitbox_for_object(obj, game.final_transforms[h.idx].transform, dt),
+		box := get_bounding_box_for_moving_shape(
+			get_moving_hitbox_for_object(obj, game.final_transforms[h.idx].transform, dt).moving_shape,
 		)
 		new_chunks := get_chunks_between(
 			get_containing_chunk(box.min),
@@ -281,7 +288,7 @@ physics_update :: proc(dt: f64) {
 					game.final_transforms[h.idx].transform,
 					dt,
 				)
-				bounds := get_bounding_box_moving_aabb(moving_box)
+				bounds := get_bounding_box_for_moving_shape(moving_box.moving_shape)
 				append(&boxes, Handle_Hitbox{handle = h, bounds = bounds, moving_box = moving_box})
 			}
 		}
@@ -315,7 +322,7 @@ physics_update :: proc(dt: f64) {
 				if a.handle == b.handle {continue} 	//will only be useful when objects have multiple hitboxes
 				if .Collide not_in b_obj.tags {continue}
 				if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
-				if !aabb_intersect(a.moving_box, b.moving_box) {continue}
+				if !aabb_intersect(a.moving_box.moving_shape.shape.(AABB), b.moving_box.moving_shape.shape.(AABB)) {continue}
 				//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
 				if a.handle in game.objects_in_multiple_chunks &&
 				   b.handle in game.objects_in_multiple_chunks {
@@ -327,7 +334,7 @@ physics_update :: proc(dt: f64) {
 					}
 				}
 				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
-				overlap := aabb_overlap(a.moving_box, b.moving_box)
+				overlap := aabb_overlap(a.moving_box.moving_shape.shape.(AABB), b.moving_box.moving_shape.shape.(AABB))
 				new_coll_a := AABBCollision {
 					a = h,
 					b = b.handle,
@@ -449,7 +456,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 			dt,
 			pos_delta,
 		)
-		obj_bounds := get_bounding_box_moving_aabb(obj_box)
+		obj_bounds := get_bounding_box_for_moving_shape(obj_box.moving_shape)
 		//find next collision in tilemap, setting t_min
 		t_min: f64 = 1
 		will_collide := false
@@ -471,7 +478,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 					aabb = get_tile_aabb(tile_id),
 					vel  = {0, 0},
 				}
-				t, side, _, will_be_colliding := get_time_to_collide(obj_box, tile_aabb)
+				t, side, _, will_be_colliding := get_time_to_collide(obj_box.moving_shape, tile_aabb)
 				if will_be_colliding {
 					if t < offset_threshold {
 						offsets_needed[side] = true

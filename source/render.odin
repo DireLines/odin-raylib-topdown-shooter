@@ -150,7 +150,9 @@ vec2f32_to_vec2 :: proc(v: rl.Vector2) -> vec2 {
 draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	when draw_debug_shapes {
 		if .Collide in obj.tags {
-			draw_debug_box(get_moving_hitbox_for_object(obj, final_transform.transform, 0).aabb)
+			if box, ok := obj.hitbox.shape.(AABB); ok {
+				draw_debug_box(box)
+			}
 		}
 	}
 	parent_handle, has_parent := obj.parent_handle.?

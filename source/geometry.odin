@@ -150,8 +150,25 @@ get_time_to_collide_aabb_aabb :: proc(
 	return get_time_to_collide_ray_aabb(ray, aabb)
 }
 
+get_time_to_collide_moving_shape_aabb :: proc(
+	moving_shape: MovingShape,
+	aabb: AABB,
+) -> (
+	t: f64,
+	side: SideName,
+	is_colliding, will_be_colliding: bool,
+) {
+	switch s in moving_shape.shape {
+	case AABB:
+		moving_aabb := MovingAABB{aabb = s, vel = moving_shape.vel}
+		return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
+	}
+	panic("unhandled shape type in get_time_to_collide_moving_shape_aabb")
+}
+
 get_time_to_collide :: proc {//TODO: circles?
 	get_time_to_collide_aabb_aabb,
+	get_time_to_collide_moving_shape_aabb,
 	get_time_to_collide_ray_aabb,
 	get_time_to_collide_ray_line,
 }
@@ -508,22 +525,24 @@ is_point_in_triangle :: proc(p, a, b, c: vec2) -> bool {
 	return a_cross_b_has_positive_z(bc, bp) == ab_x_ap_has_positive_z
 }
 
-
-// bounds of moving aabb for broad phase detection
-get_bounding_box_moving_aabb :: proc(moving_box: MovingAABB) -> AABB {
-	corners := [4]vec2 {
-		moving_box.max,
-		moving_box.min,
-		moving_box.min + moving_box.vel,
-		moving_box.max + moving_box.vel,
+get_bounding_box_for_moving_shape :: proc(moving_shape: MovingShape) -> AABB {
+	switch s in moving_shape.shape {
+	case AABB:
+		corners := [4]vec2 {
+			s.max,
+			s.min,
+			s.min + moving_shape.vel,
+			s.max + moving_shape.vel,
+		}
+		overall_min := corners[0]
+		overall_max := corners[0]
+		#unroll for i in 1 ..< 4 {
+			overall_min = linalg.min(overall_min, corners[i])
+			overall_max = linalg.max(overall_max, corners[i])
+		}
+		return {min = overall_min, max = overall_max}
 	}
-	overall_min := corners[0]
-	overall_max := corners[0]
-	#unroll for i in 1 ..< 4 {
-		overall_min = linalg.min(overall_min, corners[i])
-		overall_max = linalg.max(overall_max, corners[i])
-	}
-	return {min = overall_min, max = overall_max}
+	panic("unhandled shape type in get_bounding_box_for_moving_shape")
 }
 
 //TODO iterator over sliding rectangle
