@@ -22,6 +22,7 @@ AABBSide :: struct {
 Ray :: struct {
 	pos, vel: vec2,
 }
+
 Circle :: struct {
 	pos:    vec2,
 	radius: f64,
@@ -30,6 +31,15 @@ Circle :: struct {
 MovingAABB :: struct {
 	using aabb: AABB,
 	vel:        vec2,
+}
+
+Shape :: union {
+	AABB,
+}
+
+MovingShape :: struct {
+	shape:	Shape,
+	vel:		vec2,
 }
 
 //point-line intersection for continuous detection
