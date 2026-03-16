@@ -446,7 +446,6 @@ atomic_chair_start :: proc() {
 	{
 		PADDING_BETWEEN_HEARTS :: 60.0
 		HEART_RENDER_SCALE :: 0.5
-		heart_tex := atlas_textures[FULL_HEART_TEXTURE]
 		for &heart_handle, i in p.heart_handles {
 			x :=
 				WINDOW_WIDTH -
@@ -461,7 +460,7 @@ atomic_chair_start :: proc() {
 						pivot = {0, 0},
 					},
 					render_info = {
-						texture = heart_tex,
+						texture = atlas_textures[FULL_HEART_TEXTURE],
 						color = rl.WHITE,
 						render_layer = uint(RenderLayer.UI),
 						keep_original_dimensions = true,
