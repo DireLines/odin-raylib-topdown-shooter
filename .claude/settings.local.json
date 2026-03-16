@@ -3,22 +3,15 @@
     "allow": [
       "Bash(odin:*)",
       "Bash(ls:*)",
+<<<<<<< Updated upstream
       "Bash(make hot:*)",
       "Bash(make:*)",
-      "Bash(odin build:*)",
+      "Bash(odin build:*)"
+=======
+      "Bash(make:*)",
       "Bash(find:*)",
-      "Bash(grep:*)",
-      "Bash(\"C:/Program Files/LLVM/bin/lldb-dap.exe\" --version 2>&1 || echo \"lldb-dap not found or errored\")",
-      "Read(//c/Program Files/LLVM/bin/**)",
-      "Bash(PATH=\"C:/Program Files/LLVM/bin:$PATH\" ./lldb-dap.exe --version)",
-      "Bash(ldd:*)",
-      "Bash(code:*)",
-      "Bash(\"C:/Program Files/LLVM/bin/lldb-dap.exe\" --help 2>&1; echo \"EXIT: $?\")",
-      "Bash(cmd.exe //c '\"C:\\\\Program Files\\\\LLVM\\\\bin\\\\lldb-dap.exe\" --help' 2>&1; echo \"EXIT: $?\")",
-      "Bash(cmd.exe /c \"\\\\\"C:\\\\\\\\Program Files\\\\\\\\LLVM\\\\\\\\bin\\\\\\\\lldb-dap.exe\\\\\" --help\" 2>&1; echo \"EXIT: $?\")",
-      "Bash(PATH=\"/c/Program Files/LLVM/bin:$PATH\" lldb.exe --version 2>&1)",
-      "Read(//c/Users/ryana/AppData/Local/Python/pythoncore-3.14-64/**)",
-      "Read(//c/Users/ryana/AppData/Local/Python/bin/**)"
+      "Bash(grep:*)"
+>>>>>>> Stashed changes
     ]
   }
 }
