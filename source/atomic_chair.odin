@@ -636,7 +636,8 @@ atomic_chair_update :: proc(dt: f64) {
 	{
 		score_label := hm.get(&game.objects, game.score_label_handle)
 		if player.score > 0 {
-			score_label.text = fmt.tprintf("Score: %d", player.score)
+			delete(score_label.text)
+			score_label.text = fmt.aprintf("Score: %d", player.score)
 		} else {
 			score_label.text = ""
 		}
