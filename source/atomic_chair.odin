@@ -24,8 +24,8 @@ ENEMY_BULLET_SPEED :: 500
 BULLET_KNOCKBACK_STRENGTH :: 10
 ENEMY_LINEAR_DRAG :: 5.0
 ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
-HALF_HEART_TEXTURE :: TextureName.Hud_Heart_Half_Kenney_New_Platformer_Pack_1_1_Large
 FULL_HEART_TEXTURE :: TextureName.Hud_Heart_Kenney_New_Platformer_Pack_1_1_Large
+HALF_HEART_TEXTURE :: TextureName.Hud_Heart_Half_Kenney_New_Platformer_Pack_1_1_Large
 EMPTY_HEART_TEXTURE :: TextureName.Hud_Heart_Empty_Kenney_New_Platformer_Pack_1_1_Large
 INGAME_UI_PADDING :: 20.0
 HEART_RENDER_SCALE :: 0.75
@@ -43,8 +43,6 @@ GameSpecificGlobalState :: struct {
 	//where to spawn the player when the player object is spawned later
 	player_spawn_point: vec2,
 	player_handle:      GameObjectHandle,
-	score_label_handle: GameObjectHandle,
-	heart_handles:      [MAX_PLAYER_HEARTS]GameObjectHandle,
 }
 
 //object tags
@@ -82,9 +80,11 @@ EnemyState :: enum {
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
 Player :: struct {
-	health: int,
-	state:  AliveDeadState,
-	score:  int,
+	health:             int,
+	state:              AliveDeadState,
+	score:              int,
+	score_label_handle: GameObjectHandle,
+	heart_handles:      [MAX_PLAYER_HEARTS]GameObjectHandle,
 }
 Enemy :: struct {
 	health:         int,
@@ -416,7 +416,7 @@ atomic_chair_start :: proc() {
 		},
 		animation = initial_animation_state(make_animation(.Squatman_Idle, 3)),
 		tags = {.Player, .Collide, .Sprite},
-		variant = Player{6, .Alive, 0},
+		variant = Player{health = 6, state = .Alive},
 	}
 	player_handle := spawn_object(player_def)
 	game.player_handle = player_handle
@@ -441,14 +441,18 @@ atomic_chair_start :: proc() {
 		tags = {.Text},
 		parent_handle = game.screen_space_parent_handle,
 	}
-	game.score_label_handle = spawn_object(score_label)
+	p := &player.variant.(Player)
+	p.score_label_handle = spawn_object(score_label)
 
 	{
+		PADDING_BETWEEN_HEARTS :: 80.0
 		heart_tex := atlas_textures[FULL_HEART_TEXTURE]
-		heart_render_w := f64(heart_tex.rect.width) * HEART_RENDER_SCALE
 		for i in 0 ..< MAX_PLAYER_HEARTS {
-			x := WINDOW_WIDTH - INGAME_UI_PADDING - f64(MAX_PLAYER_HEARTS - i) * heart_render_w
-			game.heart_handles[i] = spawn_object(
+			x :=
+				WINDOW_WIDTH -
+				INGAME_UI_PADDING -
+				f64(MAX_PLAYER_HEARTS - i) * PADDING_BETWEEN_HEARTS
+			p.heart_handles[i] = spawn_object(
 				GameObject {
 					name = "heart",
 					transform = {
@@ -670,7 +674,7 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	//update score label
 	{
-		score_label := hm.get(&game.objects, game.score_label_handle)
+		score_label := hm.get(&game.objects, player.score_label_handle)
 		if player.score > 0 {
 			delete(score_label.text)
 			score_label.text = fmt.aprintf("Score: %d", player.score)
@@ -681,7 +685,7 @@ atomic_chair_update :: proc(dt: f64) {
 	//update health hearts
 	{
 		for i in 0 ..< MAX_PLAYER_HEARTS {
-			heart, ok := hm.get(&game.objects, game.heart_handles[i])
+			heart, ok := hm.get(&game.objects, player.heart_handles[i])
 			if !ok {continue}
 			health_in_slot := player.health - i * 2
 			if health_in_slot >= 2 {
