@@ -37,6 +37,7 @@ GameSpecificGlobalState :: struct {
 	//where to spawn the player when the player object is spawned later
 	player_spawn_point: vec2,
 	player_handle:      GameObjectHandle,
+	score_label_handle: GameObjectHandle,
 }
 
 //object tags
@@ -76,6 +77,7 @@ EnemyState :: enum {
 Player :: struct {
 	health: int,
 	state:  AliveDeadState,
+	score:  int,
 }
 Enemy :: struct {
 	health:         int,
@@ -407,11 +409,29 @@ atomic_chair_start :: proc() {
 		},
 		animation = initial_animation_state(make_animation(.Squatman_Idle, 3)),
 		tags = {.Player, .Collide, .Sprite},
-		variant = Player{5, .Alive},
+		variant = Player{5, .Alive, 0},
 	}
 	player_handle := spawn_object(player_def)
 	game.player_handle = player_handle
 	player := hm.get(&game.objects, player_handle)
+
+	SCORE_PADDING :: 20.0
+	score_label := GameObject {
+		name = "score label",
+		transform = {position = {SCORE_PADDING, SCORE_PADDING}, scale = {1, 1}, pivot = {0, 0}},
+		render_info = {
+			color = rl.WHITE,
+			render_layer = uint(RenderLayer.UI),
+			text_render_info = {
+				font_size = UI_SECONDARY_FONT_SIZE,
+				text_color = BEE_YELLOW,
+				text_alignment = .Left,
+			},
+		},
+		tags = {.Text},
+		parent_handle = game.screen_space_parent_handle,
+	}
+	game.score_label_handle = spawn_object(score_label)
 }
 
 
@@ -538,7 +558,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	//player movement
-	player, player_present := hm.get(&game.objects, game.player_handle)
+	player := object_inst(game.player_handle, Player)
 	// player.shader = .SolidColor
 	switch player.variant.(Player).state {
 	case .Alive:
@@ -612,6 +632,15 @@ atomic_chair_update :: proc(dt: f64) {
 			player.color.a -= 2
 		}
 	}
+	//update score label
+	{
+		score_label := hm.get(&game.objects, game.score_label_handle)
+		if player.score > 0 {
+			score_label.text = fmt.aprintf("Score: %d", player.score)
+		} else {
+			score_label.text = ""
+		}
+	}
 	{it := hm.make_iter(&game.objects)
 		for bullet, bullet_handle in all_objects_with_variant(&it, Bullet) {
 			switch bullet.state {
@@ -646,6 +675,7 @@ atomic_chair_update :: proc(dt: f64) {
 							//did we just kill?
 							if e.health <= 0 {
 								e.state = .Dead
+								player.score += 1
 							}
 						case .Player:
 							should_kill_bullet = true
@@ -965,14 +995,9 @@ spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 		snap_increment = 0.2,
 		show_percentage = true,
 		//TODO use rl.SetMusicVolume() on global music object
-		default_value = f64(rl.GetMasterVolume()),
-		current_value = f64(rl.GetMasterVolume()),
 		left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
 		right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
-		on_set_value = proc(info: SliderCallbackInfo) {
-			rl.SetMasterVolume(f32(info.new_value))
-			rl.PlaySound(get_sound("hit.wav"))
-		},
+		on_set_value = proc(info: SliderCallbackInfo) {},
 	},
 	)
 	return [6]GameObjectHandle {
