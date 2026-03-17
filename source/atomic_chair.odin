@@ -402,10 +402,10 @@ atomic_chair_start :: proc() {
 			position = game.player_spawn_point,
 			rotation = 0,
 			scale = {1.4, 1.4},
-			pivot = {64, 64},
+			pivot = {64, 128},
 		},
 		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, box = {{-29, -45}, {29, 44}}}, //relative to object's pivot
+		hitbox = {layer = .Player, box = {{-40, -75}, {40, 74}}}, //relative to object's pivot
 		render_info = {
 			color = rl.WHITE,
 			texture = atlas_textures[.Squatman0],
@@ -413,7 +413,7 @@ atomic_chair_start :: proc() {
 			include_transparent_border = true,
 			keep_original_dimensions = true,
 		},
-		animation = initial_animation_state(make_animation(.Squatman_Idle, 3)),
+		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
 		tags = {.Player, .Collide, .Sprite},
 		variant = Player{health = 6, state = .Alive},
 	}
@@ -585,11 +585,10 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	timer->time("load chunks")
 	player_take_damage :: proc(player: GameObjectInst(Player)) {
-		p := &player.variant.(Player)
-		p.health -= 1
+		player.health -= 1
 		//did we just die?
-		if p.health <= 0 {
-			p.state = .Dead
+		if player.health <= 0 {
+			player.state = .Dead
 			play_sound(get_sound("death.wav"))
 			play_sound(get_sound("death2.wav"))
 		} else {
@@ -619,17 +618,17 @@ atomic_chair_update :: proc(dt: f64) {
 		// cam_target := player.position + player.velocity * CAM_LEAD
 		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
 		desired_anim_name: AnimationName
-		desired_anim_speed: uint = 4
+		desired_anim_speed: uint = 5
 		{
 			if abs(pos_diff.x) > 0 {
 				desired_anim_name = .Squatman_Run_Right
 			} else {
 				if pos_diff.y < 0 {
 					desired_anim_name = .Squatman_Run_Up
-					desired_anim_speed = 6
+					desired_anim_speed = 8
 				} else if pos_diff.y > 0 {
 					desired_anim_name = .Squatman_Run_Down
-					desired_anim_speed = 6
+					desired_anim_speed = 8
 				} else {
 					desired_anim_name = .Squatman_Idle
 				}
