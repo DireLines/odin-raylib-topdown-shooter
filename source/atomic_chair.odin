@@ -20,6 +20,7 @@ FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
 PLAYER_MAX_SPEED :: 40000
 PLAYER_LINEAR_DRAG :: 5.0
 PLAYER_BULLET_SPEED :: 1400
+PLAYER_BULLET_FIRING_POSITION_OFFSET :: 40
 ENEMY_BULLET_SPEED :: 500
 BULLET_KNOCKBACK_STRENGTH :: 10
 ENEMY_LINEAR_DRAG :: 5.0
@@ -27,6 +28,7 @@ ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
 FULL_HEART_TEXTURE :: TextureName.Hud_Heart_Kenney_New_Platformer_Pack_1_1_Large
 HALF_HEART_TEXTURE :: TextureName.Hud_Heart_Half_Kenney_New_Platformer_Pack_1_1_Large
 EMPTY_HEART_TEXTURE :: TextureName.Hud_Heart_Empty_Kenney_New_Platformer_Pack_1_1_Large
+PLAYER_BULLET_TEXTURE :: TextureName.Arrow_Right_Kenney_Board_Game_Icons_128px
 INGAME_UI_PADDING :: 20.0
 MAX_PLAYER_HEARTS :: 3
 
@@ -405,7 +407,7 @@ atomic_chair_start :: proc() {
 			pivot = {64, 128},
 		},
 		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, box = {{-40, -75}, {40, 74}}}, //relative to object's pivot
+		hitbox = {layer = .Player, box = {{-40, -60}, {40, 74}}}, //relative to object's pivot
 		render_info = {
 			color = rl.WHITE,
 			texture = atlas_textures[.Squatman0],
@@ -647,11 +649,15 @@ atomic_chair_update :: proc(dt: f64) {
 		timer->time("move player")
 		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), screen_conversion)
 		if rl.IsMouseButtonPressed(.LEFT) {
-			firing_pos := get_world_center(game.player_handle)
-			bullet_diff := mouse_pos - firing_pos
+			player_center := get_world_center(game.player_handle)
+			bullet_diff := mouse_pos - player_center
 			bullet_velocity :=
 				linalg.normalize(bullet_diff) * PLAYER_BULLET_SPEED + player.velocity * 0.5
 			bullet_fired := false
+			firing_pos :=
+				player_center -
+				{0, 50} +
+				linalg.normalize(bullet_velocity) * PLAYER_BULLET_FIRING_POSITION_OFFSET
 			bullet_handle := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
 			if bullet_handle != nil {
 				bullet_fired = true
@@ -872,12 +878,17 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 
 spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectHandle) {
 	//shoot bullet
-	tex := atlas_textures[.White]
+	tex := atlas_textures[PLAYER_BULLET_TEXTURE]
 	tex_dims := vec2{tex.rect.width, tex.rect.height}
 	scale := vec2{0.24, 0.24}
 	bullet := GameObject {
 		name = fmt.aprint("bullet"),
-		transform = {position = pos, rotation = 0, scale = scale, pivot = (tex_dims / 2)},
+		transform = {
+			position = pos,
+			rotation = math.to_degrees_f64(math.atan2(vel.y, vel.x)),
+			scale = scale,
+			pivot = (tex_dims / 2),
+		},
 		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
 		velocity = vel,
 		hitbox = {layer = layer, box = {min = -(tex_dims / 2), max = tex_dims / 2}},
