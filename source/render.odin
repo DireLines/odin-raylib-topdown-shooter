@@ -17,6 +17,7 @@ RenderInfo :: struct {
 	using text_render_info: TextRenderInfo,
 	render_layer:           uint,
 	using import_mode:      TextureImportMode,
+	draw:                   proc(obj: ^GameObject),
 }
 
 TextureImportMode :: struct {
@@ -219,6 +220,13 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 			0,
 			obj.text_color.? or_else rl.GREEN,
 		)
+	}
+	if .CustomDraw in obj.tags {
+		if obj.draw != nil {
+			obj->draw()
+		} else {
+			print("custom draw mode was on for", obj.name, "but custom draw proc was nil")
+		}
 	}
 }
 

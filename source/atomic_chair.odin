@@ -55,6 +55,7 @@ ObjectTag :: enum {
 	Collide, // if present, the collision system will consider this object in collisions
 	Sprite, // if present, the renderer will draw the sprite / texture data of this object
 	Text, // if present, the renderer will draw the text data of this object
+	CustomDraw, //if present, the renderer will call the custom draw function on this object
 	//user-defined tags
 	Bullet,
 	Player,
