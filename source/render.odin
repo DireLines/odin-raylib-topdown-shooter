@@ -150,9 +150,16 @@ vec2f32_to_vec2 :: proc(v: rl.Vector2) -> vec2 {
 draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	when draw_debug_shapes {
 		if .Collide in obj.tags {
-			if box, ok := obj.hitbox.shape.(AABB); ok {
-				draw_debug_box(box)
-			}
+			switch s in obj.hitbox.shape {
+				case Circle:
+					draw_debug_circle(
+						world_coords = mat_vec_mul(final_transform.transform, obj.hitbox.shape.(Circle).pos),
+						radius = obj.hitbox.shape.(Circle).radius,
+						color = rl.RED,
+						filled = false,
+					)
+				case AABB:
+					draw_debug_box(s)
 		}
 	}
 	parent_handle, has_parent := obj.parent_handle.?
