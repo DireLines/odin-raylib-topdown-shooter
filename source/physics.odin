@@ -322,7 +322,7 @@ physics_update :: proc(dt: f64) {
 				if a.handle == b.handle {continue} 	//will only be useful when objects have multiple hitboxes
 				if .Collide not_in b_obj.tags {continue}
 				if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
-				if !aabb_intersect(a.moving_box.moving_shape.shape.(AABB), b.moving_box.moving_shape.shape.(AABB)) {continue}
+				if !shapes_intersect(a.moving_box.moving_shape.shape, b.moving_box.moving_shape.shape) {continue}
 				//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
 				if a.handle in game.objects_in_multiple_chunks &&
 				   b.handle in game.objects_in_multiple_chunks {

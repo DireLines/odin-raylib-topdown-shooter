@@ -35,6 +35,7 @@ MovingAABB :: struct {
 
 Shape :: union {
 	AABB,
+	Circle,
 }
 
 MovingShape :: struct {
@@ -159,9 +160,14 @@ get_time_to_collide_moving_shape_aabb :: proc(
 	is_colliding, will_be_colliding: bool,
 ) {
 	switch s in moving_shape.shape {
-	case AABB:
-		moving_aabb := MovingAABB{aabb = s, vel = moving_shape.vel}
-		return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
+		case AABB:
+			moving_aabb := MovingAABB{aabb = s, vel = moving_shape.vel}
+			return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
+		case Circle:
+			//TODO implement this properly instead of just using the aabb of the circle
+			circle_aabb := AABB{min = s.pos - vec2{s.radius, s.radius}, max = s.pos + vec2{s.radius, s.radius}}
+			moving_aabb := MovingAABB{aabb = circle_aabb, vel = moving_shape.vel}
+			return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
 	}
 	panic("unhandled shape type in get_time_to_collide_moving_shape_aabb")
 }
@@ -173,6 +179,35 @@ get_time_to_collide :: proc {//TODO: circles?
 	get_time_to_collide_ray_line,
 }
 
+shapes_intersect :: proc(a, b: Shape) -> bool {
+	//TODO: obviously this doesnt scale.
+	// Need a better solution when we have more shapes. With only 2 its fine for now.
+	switch s_a in a {
+		case AABB:
+			switch s_b in b {
+				case AABB:
+					return aabb_intersect(s_a, s_b)
+				case Circle:
+					return aabb_circle_intersect(s_a, s_b)
+			}
+		case Circle:
+			switch s_b in b {
+				case AABB:
+					return aabb_circle_intersect(s_b, s_a)
+				case Circle:
+					return circle_intersect(s_a, s_b)
+			}
+	}
+	panic("unhandled shape type in shapes_intersect")
+}
+
+aabb_circle_intersect :: proc(a: AABB, b: Circle) -> bool {
+	closest_point := linalg.clamp(b.pos, a.min, a.max)
+	return linalg.distance(closest_point, b.pos) <= b.radius
+}
+circle_intersect :: proc(a, b: Circle) -> bool {
+	return linalg.distance(a.pos, b.pos) <= a.radius + b.radius
+}
 aabb_intersect :: proc(a, b: AABB) -> bool {
 	return (a.min.x <= b.max.x && a.max.x >= b.min.x) && (a.min.y <= b.max.y && a.max.y >= b.min.y)
 }
@@ -540,6 +575,13 @@ get_bounding_box_for_moving_shape :: proc(moving_shape: MovingShape) -> AABB {
 			overall_min = linalg.min(overall_min, corners[i])
 			overall_max = linalg.max(overall_max, corners[i])
 		}
+		return {min = overall_min, max = overall_max}
+	case Circle:
+		r := s.radius
+		start_center := s.pos
+		end_center := s.pos + moving_shape.vel
+		overall_min := linalg.min(start_center, end_center) - vec2{r, r}
+		overall_max := linalg.max(start_center, end_center) + vec2{r, r}
 		return {min = overall_min, max = overall_max}
 	}
 	panic("unhandled shape type in get_bounding_box_for_moving_shape")
