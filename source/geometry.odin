@@ -179,6 +179,85 @@ get_time_to_collide :: proc {//TODO: circles?
 	get_time_to_collide_ray_line,
 }
 
+shapes_contact :: proc(a, b: Shape) -> (normal: vec2, depth: f64) {
+	switch s_a in a {
+	case AABB:
+		switch s_b in b {
+		case AABB:
+			return aabb_aabb_contact(s_a, s_b)
+		case Circle:
+			n, d := circle_aabb_contact(s_b, s_a)
+			return -n, d
+		}
+	case Circle:
+		switch s_b in b {
+		case AABB:
+			return circle_aabb_contact(s_a, s_b)
+		case Circle:
+			return circle_circle_contact(s_a, s_b)
+		}
+	}
+	panic("unhandled shape type in shapes_contact")
+}
+
+aabb_aabb_contact :: proc(a, b: AABB) -> (normal: vec2, depth: f64) {
+	center_a := (a.min + a.max) * 0.5
+	center_b := (b.min + b.max) * 0.5
+	overlap_x := math.min(a.max.x, b.max.x) - math.max(a.min.x, b.min.x)
+	overlap_y := math.min(a.max.y, b.max.y) - math.max(a.min.y, b.min.y)
+	if overlap_x <= overlap_y {
+		depth = overlap_x
+		normal = {math.sign(center_a.x - center_b.x), 0}
+	} else {
+		depth = overlap_y
+		normal = {0, math.sign(center_a.y - center_b.y)}
+	}
+	return
+}
+
+circle_circle_contact :: proc(a, b: Circle) -> (normal: vec2, depth: f64) {
+	diff := a.pos - b.pos
+	dist := linalg.length(diff)
+	depth = a.radius + b.radius - dist
+	if dist > 0 {
+		normal = diff / dist
+	} else {
+		normal = {1, 0}
+	}
+	return
+}
+
+// normal points from aabb toward circle (i.e. the direction the circle should move to resolve)
+circle_aabb_contact :: proc(circle: Circle, box: AABB) -> (normal: vec2, depth: f64) {
+	closest := linalg.clamp(circle.pos, box.min, box.max)
+	diff := circle.pos - closest
+	dist := linalg.length(diff)
+	depth = circle.radius - dist
+	if dist > 0 {
+		normal = diff / dist
+		return
+	}
+	// circle center is inside the AABB — find minimum penetration axis to exit
+	to_min := circle.pos - box.min
+	to_max := box.max - circle.pos
+	min_dist := math.min(to_min.x, math.min(to_min.y, math.min(to_max.x, to_max.y)))
+	switch min_dist {
+	case to_min.x:
+		normal = {-1, 0}
+		depth = circle.radius + to_min.x
+	case to_max.x:
+		normal = {1, 0}
+		depth = circle.radius + to_max.x
+	case to_min.y:
+		normal = {0, -1}
+		depth = circle.radius + to_min.y
+	case:
+		normal = {0, 1}
+		depth = circle.radius + to_max.y
+	}
+	return
+}
+
 shapes_intersect :: proc(a, b: Shape) -> bool {
 	//TODO: obviously this doesnt scale.
 	// Need a better solution when we have more shapes. With only 2 its fine for now.

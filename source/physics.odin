@@ -43,17 +43,17 @@ CollisionEventType :: enum {
 	stay,
 	stop,
 }
-AABBDiscreteCollision :: struct {
-	a_vel, b_vel: vec2,
-	overlap:      AABB,
+DiscreteCollision :: struct {
+	normal:            vec2,
+	penetration_depth: f64,
 }
-AABBContinuousCollision :: struct {
+ContinuousCollision :: struct {
 	time_to_collide: f64,
 	normal:          vec2,
 }
-AABBCollisionInfo :: union {
-	AABBDiscreteCollision,
-	AABBContinuousCollision,
+CollisionInfo :: union {
+	DiscreteCollision,
+	ContinuousCollision,
 }
 
 AABBCollision :: struct {
@@ -61,7 +61,7 @@ AABBCollision :: struct {
 		GameObjectHandle,
 		TilemapTileId,
 	},
-	info: AABBCollisionInfo,
+	info: CollisionInfo,
 	type: CollisionEventType,
 }
 
@@ -334,16 +334,16 @@ physics_update :: proc(dt: f64) {
 					}
 				}
 				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
-				overlap := aabb_overlap(a.moving_box.moving_shape.shape.(AABB), b.moving_box.moving_shape.shape.(AABB))
+				normal, depth := shapes_contact(a.moving_box.moving_shape.shape, b.moving_box.moving_shape.shape)
 				new_coll_a := AABBCollision {
 					a = h,
 					b = b.handle,
-					info = AABBDiscreteCollision{overlap = overlap},
+					info = DiscreteCollision{normal = normal, penetration_depth = depth},
 				}
 				new_coll_b := AABBCollision {
 					a = b.handle,
 					b = h,
-					info = AABBDiscreteCollision{overlap = overlap},
+					info = DiscreteCollision{normal = -normal, penetration_depth = depth},
 				}
 				add_collision(h, new_coll_a)
 				add_collision(b.handle, new_coll_b)
@@ -516,7 +516,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 				collision := AABBCollision {
 					a = obj_handle,
 					b = tile_id,
-					info = AABBContinuousCollision {
+					info = ContinuousCollision {
 						time_to_collide = t_min * t_remaining,
 						normal = wall_normal,
 					},

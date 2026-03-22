@@ -161,6 +161,7 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 				case AABB:
 					draw_debug_box(s)
 		}
+t	}
 	}
 	parent_handle, has_parent := obj.parent_handle.?
 	if .Sprite in obj.tags {
@@ -477,8 +478,8 @@ render :: proc() {
 		for k, v in game.collisions {
 			for c in v {
 				#partial switch info in c.info {
-				case AABBDiscreteCollision:
-					draw_debug_box_now(info.overlap, rl.RED, filled = true)
+				case DiscreteCollision:
+					// draw contact normal as a line from origin (no world pos available here, just visualize it exists)
 				}
 			}
 		}
