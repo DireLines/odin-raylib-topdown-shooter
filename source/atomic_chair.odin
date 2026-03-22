@@ -758,7 +758,8 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		name = "enemy",
 		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
 		tags = {.Enemy, .Collide, .Sprite},
-		hitbox = {layer = .Enemy, shape = AABB{{-45, -45}, {45, 45}}}, //relative to object's pivot
+		hitbox = {layer = .Enemy, shape = Circle{{0, 0}, 45}}, //relative to object's pivot
+		// hitbox = {layer = .Enemy, shape = AABB{{-45, -45}, {45, 45}}}, //relative to object's pivot
 		linear_drag = ENEMY_LINEAR_DRAG,
 		render_layer = uint(RenderLayer.Enemy),
 		variant = Enemy {
