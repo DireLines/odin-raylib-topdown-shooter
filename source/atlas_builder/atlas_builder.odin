@@ -602,7 +602,7 @@ load_png_texture_data :: proc(filename: string, textures: ^[dynamic]Texture_Data
 	img, img_err := png.load_from_bytes(data)
 
 	if img_err != nil {
-		log.error("PNG load error", img_err)
+		log.error("PNG load error", img_err, ":", filename)
 		return
 	}
 
