@@ -1,7 +1,9 @@
 build/
+.vscode/
 
 game
 game.exe
+game.pdb
 game.dSYM
 game_hot_reload.bin
 game_hot_reload.bin.dSYM

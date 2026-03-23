@@ -1,0 +1,103 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "make: run",
+      "type": "shell",
+      "command": "make run",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: speed",
+      "type": "shell",
+      "command": "make speed",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: release",
+      "type": "shell",
+      "command": "make release",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: debug",
+      "type": "shell",
+      "command": "make debug",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: mem",
+      "type": "shell",
+      "command": "make mem",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: perf",
+      "type": "shell",
+      "command": "make perf",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: compile-perf",
+      "type": "shell",
+      "command": "make compile-perf",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: atlas",
+      "type": "shell",
+      "command": "make atlas",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: palette",
+      "type": "shell",
+      "command": "make palette",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: hot-reload",
+      "type": "shell",
+      "command": "make hot-reload",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: hot-reload-run",
+      "type": "shell",
+      "command": "make hot-reload-run",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: web",
+      "type": "shell",
+      "command": "make web",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: deploy",
+      "type": "shell",
+      "command": "make deploy",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "make: web-deploy",
+      "type": "shell",
+      "command": "make web-deploy",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -29,11 +29,12 @@ CollisionProperties :: struct {
 }
 
 Hitbox :: struct {
-	using box:       AABB,
+	shape:       Shape,
 	using collision: CollisionProperties,
 }
+
 MovingHitbox :: struct {
-	using box:       MovingAABB,
+	moving_shape:       MovingShape,
 	using collision: CollisionProperties,
 }
 
@@ -42,17 +43,17 @@ CollisionEventType :: enum {
 	stay,
 	stop,
 }
-AABBDiscreteCollision :: struct {
-	a_vel, b_vel: vec2,
-	overlap:      AABB,
+DiscreteCollision :: struct {
+	normal:            vec2,
+	penetration_depth: f64,
 }
-AABBContinuousCollision :: struct {
+ContinuousCollision :: struct {
 	time_to_collide: f64,
 	normal:          vec2,
 }
-AABBCollisionInfo :: union {
-	AABBDiscreteCollision,
-	AABBContinuousCollision,
+CollisionInfo :: union {
+	DiscreteCollision,
+	ContinuousCollision,
 }
 
 AABBCollision :: struct {
@@ -60,7 +61,7 @@ AABBCollision :: struct {
 		GameObjectHandle,
 		TilemapTileId,
 	},
-	info: AABBCollisionInfo,
+	info: CollisionInfo,
 	type: CollisionEventType,
 }
 
@@ -117,12 +118,28 @@ get_moving_hitbox_for_object :: proc(
 	precalculated_delta: Maybe(vec2) = nil,
 ) -> MovingHitbox {
 	m := transform * pivot(obj.transform)
-	c1, c2 := mat_vec_mul(m, obj.hitbox.min), mat_vec_mul(m, obj.hitbox.max)
-	return {
-		aabb = {linalg.min(c1, c2), linalg.max(c1, c2)},
-		vel = precalculated_delta.? or_else get_pos_delta(obj, dt),
-		collision = obj.hitbox.collision,
+	vel := precalculated_delta.? or_else get_pos_delta(obj, dt)
+	switch s in obj.hitbox.shape {
+	case AABB:
+		c1, c2 := mat_vec_mul(m, s.min), mat_vec_mul(m, s.max)
+		return {
+			moving_shape = MovingShape{
+				shape = AABB{linalg.min(c1, c2), linalg.max(c1, c2)},
+				vel   = vel,
+			},
+			collision = obj.hitbox.collision,
+		}
+	case Circle:
+		scale := linalg.length(vec2{m[0][0], m[1][0]})
+		return {
+			moving_shape = MovingShape{
+				shape = Circle{pos = mat_vec_mul(m, s.pos), radius = s.radius * scale},
+				vel   = vel,
+			},
+			collision = obj.hitbox.collision,
+		}
 	}
+	panic("unhandled shape in get_moving_hitbox_for_object")
 }
 
 get_texture_aabb_for_object :: proc(obj: ^GameObject, transform: mat3) -> AABB {
@@ -137,6 +154,9 @@ remake_chunks :: proc(dt: f64) {
 	clear_map(&game.chunks)
 	it := hm.make_iter(&game.objects)
 	for obj, h in hm.iter(&it) {
+		if .Collide not_in obj.tags {
+			continue
+		}
 		//make sure obj is in the right chunks and only those chunks
 		//since object hitbox is a contiguous shape,
 		//it's sufficient to get the rectangle of chunk ids between those which contain the top left and bottom right corners of the box
@@ -145,8 +165,8 @@ remake_chunks :: proc(dt: f64) {
 		//many objects per chunk, but only 1 or 2 chunks per object
 		//objects stay in same chunks as last frame
 		//optimize for this case
-		box := get_bounding_box_moving_aabb(
-			get_moving_hitbox_for_object(obj, game.final_transforms[h.idx].transform, dt),
+		box := get_bounding_box_for_moving_shape(
+			get_moving_hitbox_for_object(obj, game.final_transforms[h.idx].transform, dt).moving_shape,
 		)
 		new_chunks := get_chunks_between(
 			get_containing_chunk(box.min),
@@ -281,7 +301,7 @@ physics_update :: proc(dt: f64) {
 					game.final_transforms[h.idx].transform,
 					dt,
 				)
-				bounds := get_bounding_box_moving_aabb(moving_box)
+				bounds := get_bounding_box_for_moving_shape(moving_box.moving_shape)
 				append(&boxes, Handle_Hitbox{handle = h, bounds = bounds, moving_box = moving_box})
 			}
 		}
@@ -315,7 +335,7 @@ physics_update :: proc(dt: f64) {
 				if a.handle == b.handle {continue} 	//will only be useful when objects have multiple hitboxes
 				if .Collide not_in b_obj.tags {continue}
 				if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
-				if !aabb_intersect(a.moving_box, b.moving_box) {continue}
+				if !shapes_intersect(a.moving_box.moving_shape.shape, b.moving_box.moving_shape.shape) {continue}
 				//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
 				if a.handle in game.objects_in_multiple_chunks &&
 				   b.handle in game.objects_in_multiple_chunks {
@@ -327,16 +347,24 @@ physics_update :: proc(dt: f64) {
 					}
 				}
 				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
-				overlap := aabb_overlap(a.moving_box, b.moving_box)
+				normal, depth := shapes_contact(a.moving_box.moving_shape.shape, b.moving_box.moving_shape.shape)
+				if a.moving_box.resolve && b.moving_box.resolve {
+					obj_a := hm.get(&game.objects, a.handle)
+					obj_b := hm.get(&game.objects, b.handle)
+					if obj_a != nil && obj_b != nil {
+						obj_a.position += normal * depth * 0.5
+						obj_b.position -= normal * depth * 0.5
+					}
+				}
 				new_coll_a := AABBCollision {
 					a = h,
 					b = b.handle,
-					info = AABBDiscreteCollision{overlap = overlap},
+					info = DiscreteCollision{normal = normal, penetration_depth = depth},
 				}
 				new_coll_b := AABBCollision {
 					a = b.handle,
 					b = h,
-					info = AABBDiscreteCollision{overlap = overlap},
+					info = DiscreteCollision{normal = -normal, penetration_depth = depth},
 				}
 				add_collision(h, new_coll_a)
 				add_collision(b.handle, new_coll_b)
@@ -449,7 +477,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 			dt,
 			pos_delta,
 		)
-		obj_bounds := get_bounding_box_moving_aabb(obj_box)
+		obj_bounds := get_bounding_box_for_moving_shape(obj_box.moving_shape)
 		//find next collision in tilemap, setting t_min
 		t_min: f64 = 1
 		will_collide := false
@@ -471,7 +499,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 					aabb = get_tile_aabb(tile_id),
 					vel  = {0, 0},
 				}
-				t, side, _, will_be_colliding := get_time_to_collide(obj_box, tile_aabb)
+				t, side, _, will_be_colliding := get_time_to_collide(obj_box.moving_shape, tile_aabb)
 				if will_be_colliding {
 					if t < offset_threshold {
 						offsets_needed[side] = true
@@ -509,7 +537,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 				collision := AABBCollision {
 					a = obj_handle,
 					b = tile_id,
-					info = AABBContinuousCollision {
+					info = ContinuousCollision {
 						time_to_collide = t_min * t_remaining,
 						normal = wall_normal,
 					},

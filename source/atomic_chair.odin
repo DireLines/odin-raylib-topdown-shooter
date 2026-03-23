@@ -408,7 +408,7 @@ atomic_chair_start :: proc() {
 			pivot = {64, 128},
 		},
 		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, box = {{-40, -60}, {40, 74}}}, //relative to object's pivot
+		hitbox = {layer = .Player, shape = AABB{{-40, -60}, {40, 74}}}, //relative to object's pivot
 		render_info = {
 			color = rl.WHITE,
 			texture = atlas_textures[.Squatman0],
@@ -850,7 +850,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		name = "enemy",
 		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
 		tags = {.Enemy, .Collide, .Sprite},
-		hitbox = {layer = .Enemy, box = {{-45, -45}, {45, 45}}}, //relative to object's pivot
+		hitbox = {layer = .Enemy, shape = Circle{{0, 0}, 45}}, //relative to object's pivot
 		linear_drag = ENEMY_LINEAR_DRAG,
 		render_layer = uint(RenderLayer.Enemy),
 		variant = Enemy {
@@ -892,7 +892,7 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectH
 		},
 		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
 		velocity = vel,
-		hitbox = {layer = layer, box = {min = -(tex_dims / 2), max = tex_dims / 2}},
+		hitbox = {layer = layer, shape = AABB{min = -(tex_dims / 2), max = tex_dims / 2}},
 		tags = {.Bullet, .Collide, .Sprite},
 		variant = Bullet{nil, .Alive},
 	}
