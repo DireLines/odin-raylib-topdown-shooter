@@ -20,10 +20,17 @@ FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
 PLAYER_MAX_SPEED :: 40000
 PLAYER_LINEAR_DRAG :: 5.0
 PLAYER_BULLET_SPEED :: 1400
+PLAYER_BULLET_FIRING_POSITION_OFFSET :: 15
 ENEMY_BULLET_SPEED :: 500
 BULLET_KNOCKBACK_STRENGTH :: 10
 ENEMY_LINEAR_DRAG :: 5.0
 ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
+FULL_HEART_TEXTURE :: TextureName.Hud_Heart_Kenney_New_Platformer_Pack_1_1_Large
+HALF_HEART_TEXTURE :: TextureName.Hud_Heart_Half_Kenney_New_Platformer_Pack_1_1_Large
+EMPTY_HEART_TEXTURE :: TextureName.Hud_Heart_Empty_Kenney_New_Platformer_Pack_1_1_Large
+PLAYER_BULLET_TEXTURE :: TextureName.Arrow_Right_Kenney_Board_Game_Icons_128px
+INGAME_UI_PADDING :: 20.0
+MAX_PLAYER_HEARTS :: 3
 
 UI_MAIN_FONT_SIZE :: 72
 UI_SECONDARY_FONT_SIZE :: 42
@@ -48,6 +55,7 @@ ObjectTag :: enum {
 	Collide, // if present, the collision system will consider this object in collisions
 	Sprite, // if present, the renderer will draw the sprite / texture data of this object
 	Text, // if present, the renderer will draw the text data of this object
+	CustomDraw, //if present, the renderer will call the custom draw function on this object
 	//user-defined tags
 	Bullet,
 	Player,
@@ -74,8 +82,11 @@ EnemyState :: enum {
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
 Player :: struct {
-	health: int,
-	state:  AliveDeadState,
+	health:             int,
+	state:              AliveDeadState,
+	score:              int,
+	score_label_handle: GameObjectHandle,
+	heart_handles:      [MAX_PLAYER_HEARTS]GameObjectHandle,
 }
 Enemy :: struct {
 	health:         int,
@@ -150,8 +161,8 @@ RenderLayer :: enum uint {
 	Floor   = NUM_RENDER_LAYERS * 50.0 / 256,
 	Wall    = NUM_RENDER_LAYERS * 52.0 / 256,
 	Enemy   = NUM_RENDER_LAYERS * 100.0 / 256,
-	Bullet  = NUM_RENDER_LAYERS * 120.0 / 256,
-	Player  = NUM_RENDER_LAYERS * 128.0 / 256,
+	Player  = NUM_RENDER_LAYERS * 120.0 / 256,
+	Bullet  = NUM_RENDER_LAYERS * 128.0 / 256,
 	Ceiling = NUM_RENDER_LAYERS * 200.0 / 256,
 	UI      = NUM_RENDER_LAYERS * 240.0 / 256,
 	Top     = NUM_RENDER_LAYERS - 1,
@@ -270,14 +281,11 @@ main_menu_start :: proc() {
 		},
 	)
 	//volume sliders
-	master_vol_slider, master_vol_slider_handle, master_vol_label := spawn_master_vol_slider()
+	slider_handles := spawn_vol_sliders()
 	//TODO credits button
-	main_menu_objects := [dynamic]GameObjectHandle {
-		play_button,
-		titlebar,
-		master_vol_slider,
-		master_vol_slider_handle,
-		master_vol_label,
+	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar}
+	for h in slider_handles {
+		append(&main_menu_objects, h)
 	}
 	when ODIN_OS != .JS {
 		quit_button := spawn_button(
@@ -342,6 +350,7 @@ handle_ui_buttons :: proc() {
 		}
 	}
 }
+
 handle_ui_sliders :: proc() {
 	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
 	it := hm.make_iter(&game.objects)
@@ -374,7 +383,6 @@ handle_ui_sliders :: proc() {
 	}
 }
 
-
 main_menu_stop :: proc() {
 	menu_container_obj, ok := hm.get(&game.objects, game.menu_container)
 	if !ok {
@@ -397,22 +405,75 @@ atomic_chair_start :: proc() {
 			position = game.player_spawn_point,
 			rotation = 0,
 			scale = {1.4, 1.4},
-			pivot = {64, 64},
+			pivot = {64, 128},
 		},
 		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, shape = AABB{{-29, -45}, {29, 44}}}, //relative to object's pivot
+		hitbox = {layer = .Player, shape = AABB{{-40, -60}, {40, 74}}}, //relative to object's pivot
 		render_info = {
 			color = rl.WHITE,
 			texture = atlas_textures[.Squatman0],
 			render_layer = uint(RenderLayer.Player),
+			include_transparent_border = true,
+			keep_original_dimensions = true,
 		},
-		animation = initial_animation_state(make_animation(.Squatman_Idle, 3)),
+		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
 		tags = {.Player, .Collide, .Sprite},
-		variant = Player{5, .Alive},
+		variant = Player{health = 6, state = .Alive},
 	}
 	player_handle := spawn_object(player_def)
 	game.player_handle = player_handle
 	player := hm.get(&game.objects, player_handle)
+
+	score_label := GameObject {
+		name = "score label",
+		transform = {
+			position = {INGAME_UI_PADDING, INGAME_UI_PADDING},
+			scale = {1, 1},
+			pivot = {0, 0},
+		},
+		render_info = {
+			color = rl.WHITE,
+			render_layer = uint(RenderLayer.UI),
+			text_render_info = {
+				font_size = UI_SECONDARY_FONT_SIZE,
+				text_color = BEE_YELLOW,
+				text_alignment = .Left,
+			},
+		},
+		tags = {.Text},
+		parent_handle = game.screen_space_parent_handle,
+	}
+	p := &player.variant.(Player)
+	p.score_label_handle = spawn_object(score_label)
+
+	{
+		PADDING_BETWEEN_HEARTS :: 60.0
+		HEART_RENDER_SCALE :: 0.5
+		for &heart_handle, i in p.heart_handles {
+			x :=
+				WINDOW_WIDTH -
+				INGAME_UI_PADDING -
+				f64(MAX_PLAYER_HEARTS - i) * PADDING_BETWEEN_HEARTS
+			heart_handle = spawn_object(
+				GameObject {
+					name = "heart",
+					transform = {
+						position = {x, INGAME_UI_PADDING},
+						scale = {HEART_RENDER_SCALE, HEART_RENDER_SCALE},
+						pivot = {0, 0},
+					},
+					render_info = {
+						texture = atlas_textures[FULL_HEART_TEXTURE],
+						color = rl.WHITE,
+						render_layer = uint(RenderLayer.UI),
+						keep_original_dimensions = true,
+					},
+					tags = {.Sprite},
+					parent_handle = game.screen_space_parent_handle,
+				},
+			)
+		}
+	}
 }
 
 
@@ -428,7 +489,7 @@ pause_menu_start :: proc() {
 		},
 	)
 	//volume sliders
-	master_vol_slider, master_vol_slider_handle, master_vol_label := spawn_master_vol_slider()
+	slider_handles := spawn_vol_sliders()
 	main_menu_button := spawn_button(
 		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 		.White,
@@ -441,12 +502,9 @@ pause_menu_start :: proc() {
 			main_menu_start()
 		},
 	)
-	pause_menu_objects := [dynamic]GameObjectHandle {
-		resume_button,
-		main_menu_button,
-		master_vol_slider,
-		master_vol_slider_handle,
-		master_vol_label,
+	pause_menu_objects := [dynamic]GameObjectHandle{resume_button, main_menu_button}
+	for h in slider_handles {
+		append(&pause_menu_objects, h)
 	}
 	menu_container := hm.get(&game.objects, game.menu_container)
 	menu_container.associated_objects["pause_menu"] = pause_menu_objects
@@ -530,11 +588,10 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	timer->time("load chunks")
 	player_take_damage :: proc(player: GameObjectInst(Player)) {
-		p := &player.variant.(Player)
-		p.health -= 1
+		player.health -= 1
 		//did we just die?
-		if p.health <= 0 {
-			p.state = .Dead
+		if player.health <= 0 {
+			player.state = .Dead
 			play_sound(get_sound("death.wav"))
 			play_sound(get_sound("death2.wav"))
 		} else {
@@ -542,7 +599,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	//player movement
-	player, player_present := hm.get(&game.objects, game.player_handle)
+	player := object_inst(game.player_handle, Player)
 	// player.shader = .SolidColor
 	switch player.variant.(Player).state {
 	case .Alive:
@@ -564,21 +621,26 @@ atomic_chair_update :: proc(dt: f64) {
 		// cam_target := player.position + player.velocity * CAM_LEAD
 		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
 		desired_anim_name: AnimationName
+		desired_anim_speed: uint = 5
 		{
 			if abs(pos_diff.x) > 0 {
 				desired_anim_name = .Squatman_Run_Right
 			} else {
 				if pos_diff.y < 0 {
 					desired_anim_name = .Squatman_Run_Up
+					desired_anim_speed = 8
 				} else if pos_diff.y > 0 {
 					desired_anim_name = .Squatman_Run_Down
+					desired_anim_speed = 8
 				} else {
 					desired_anim_name = .Squatman_Idle
 				}
 			}
 		}
 		if desired_anim_name != player.animation.anim.name {
-			player.animation = initial_animation_state(make_animation(desired_anim_name, 4))
+			player.animation = initial_animation_state(
+				make_animation(desired_anim_name, desired_anim_speed),
+			)
 		}
 		if rl.IsKeyPressed(.R) {
 			player_take_damage(object_inst(player, Player))
@@ -588,11 +650,15 @@ atomic_chair_update :: proc(dt: f64) {
 		timer->time("move player")
 		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), screen_conversion)
 		if rl.IsMouseButtonPressed(.LEFT) {
-			firing_pos := get_world_center(game.player_handle)
-			bullet_diff := mouse_pos - firing_pos
+			player_center := get_world_center(game.player_handle)
+			bullet_diff := mouse_pos - player_center
 			bullet_velocity :=
 				linalg.normalize(bullet_diff) * PLAYER_BULLET_SPEED + player.velocity * 0.5
 			bullet_fired := false
+			firing_pos :=
+				player_center -
+				{0, 50} +
+				linalg.normalize(bullet_velocity) * PLAYER_BULLET_FIRING_POSITION_OFFSET
 			bullet_handle := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
 			if bullet_handle != nil {
 				bullet_fired = true
@@ -609,6 +675,31 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 		if (player.color.a - 2) < player.color.a {
 			player.color.a -= 2
+		}
+	}
+	//update score label
+	{
+		score_label := hm.get(&game.objects, player.score_label_handle)
+		if player.score > 0 {
+			delete(score_label.text)
+			score_label.text = fmt.aprintf("Score: %d", player.score)
+		} else {
+			score_label.text = ""
+		}
+	}
+	//update health hearts
+	{
+		for i in 0 ..< MAX_PLAYER_HEARTS {
+			heart, ok := hm.get(&game.objects, player.heart_handles[i])
+			if !ok {continue}
+			health_in_slot := player.health - i * 2
+			if health_in_slot >= 2 {
+				heart.texture = atlas_textures[FULL_HEART_TEXTURE]
+			} else if health_in_slot == 1 {
+				heart.texture = atlas_textures[HALF_HEART_TEXTURE]
+			} else {
+				heart.texture = atlas_textures[EMPTY_HEART_TEXTURE]
+			}
 		}
 	}
 	{it := hm.make_iter(&game.objects)
@@ -645,6 +736,7 @@ atomic_chair_update :: proc(dt: f64) {
 							//did we just kill?
 							if e.health <= 0 {
 								e.state = .Dead
+								player.score += 1
 							}
 						case .Player:
 							should_kill_bullet = true
@@ -787,12 +879,17 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 
 spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectHandle) {
 	//shoot bullet
-	tex := atlas_textures[.White]
+	tex := atlas_textures[PLAYER_BULLET_TEXTURE]
 	tex_dims := vec2{tex.rect.width, tex.rect.height}
 	scale := vec2{0.24, 0.24}
 	bullet := GameObject {
 		name = fmt.aprint("bullet"),
-		transform = {position = pos, rotation = 0, scale = scale, pivot = (tex_dims / 2)},
+		transform = {
+			position = pos,
+			rotation = math.to_degrees_f64(math.atan2(vel.y, vel.x)),
+			scale = scale,
+			pivot = (tex_dims / 2),
+		},
 		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
 		velocity = vel,
 		hitbox = {layer = layer, shape = AABB{min = -(tex_dims / 2), max = tex_dims / 2}},
@@ -846,7 +943,7 @@ spawn_ui_slider :: proc(
 ) {
 
 	handle_tex := atlas_textures[handle_texture]
-	handle_scale := vec2{0.75, 0.9}
+	handle_scale := vec2{0.7, 0.4}
 	default_frac :=
 		(slider_info.default_value - slider_info.min_value) /
 		(slider_info.max_value - slider_info.min_value)
@@ -934,9 +1031,9 @@ spawn_ui_slider :: proc(
 	return slider_handle, slider_info.handle_handle, label_handle
 }
 
-spawn_master_vol_slider :: proc() -> (GameObjectHandle, GameObjectHandle, GameObjectHandle) {
-	return spawn_ui_slider(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3},
+spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
+	master_vol_slider, master_vol_handle, master_vol_label := spawn_ui_slider(
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2.75},
 		.White,
 		"VOL",
 		UISlider {
@@ -954,4 +1051,27 @@ spawn_master_vol_slider :: proc() -> (GameObjectHandle, GameObjectHandle, GameOb
 			},
 		},
 	)
+	music_vol_slider, music_vol_handle, music_vol_label := spawn_ui_slider(
+	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3.25},
+	.White,
+	"MUSIC",
+	UISlider {
+		min_value = 0,
+		max_value = 2,
+		snap_increment = 0.2,
+		show_percentage = true,
+		//TODO use rl.SetMusicVolume() on global music object
+		left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
+		right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
+		on_set_value = proc(info: SliderCallbackInfo) {},
+	},
+	)
+	return [6]GameObjectHandle {
+		master_vol_slider,
+		master_vol_handle,
+		master_vol_label,
+		music_vol_slider,
+		music_vol_handle,
+		music_vol_label,
+	}
 }
