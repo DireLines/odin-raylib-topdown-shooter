@@ -260,6 +260,7 @@ asset_name :: proc(path: string) -> string {
 		rel = strings.trim_suffix(rel, slashpath.name(rel)) // strip only extension, keep subdirs
 		rel = strings.concatenate({filename, "_", rel})
 		rel, _ = strings.replace_all(rel, "/", "_")
+		rel, _ = strings.replace_all(rel, "\\", "_")
 		rel, _ = strings.replace_all(rel, "-", "_")
 		rel, _ = strings.replace_all(rel, ".", "_")
 	} else {
@@ -269,7 +270,9 @@ asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", name)
 }
 
-load_font :: proc(filename: string) ->  // Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
+load_font :: proc(
+	filename: string,
+) -> // Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
 
 
 	// Build a set of all PNG paths so description-file matching doesn't need os.exists.
@@ -650,7 +653,13 @@ load_spritesheet_desc_json :: proc(data: []byte) -> (desc: Spritesheet_Desc, ok:
 	return
 }
 
-load_spritesheet :: proc(png_path: string, desc: Spritesheet_Desc) -> (sheet: Loaded_Spritesheet, ok: bool) {
+load_spritesheet :: proc(
+	png_path: string,
+	desc: Spritesheet_Desc,
+) -> (
+	sheet: Loaded_Spritesheet,
+	ok: bool,
+) {
 	data, err := os.read_entire_file(png_path, context.allocator)
 	if err != nil {
 		log.error("Failed loading spritesheet PNG", png_path)
@@ -686,11 +695,12 @@ load_spritesheet :: proc(png_path: string, desc: Spritesheet_Desc) -> (sheet: Lo
 	}
 
 	return {
-		pixels    = pixels,
-		size      = {img.width, img.height},
-		desc      = desc,
-		base_name = asset_name(png_path),
-	}, true
+			pixels = pixels,
+			size = {img.width, img.height},
+			desc = desc,
+			base_name = asset_name(png_path),
+		},
+		true
 }
 
 default_context: runtime.Context
@@ -1032,7 +1042,12 @@ main :: proc() {
 				height = sheet.size.y,
 			}
 
-			draw_image(&atlas, sheet_img, Rect{0, 0, sheet.size.x, sheet.size.y}, {int(rp.x), int(rp.y)})
+			draw_image(
+				&atlas,
+				sheet_img,
+				Rect{0, 0, sheet.size.x, sheet.size.y},
+				{int(rp.x), int(rp.y)},
+			)
 
 			atlas_pos := Vec2i{int(rp.x), int(rp.y)}
 			desc := sheet.desc
@@ -1056,7 +1071,12 @@ main :: proc() {
 					}
 
 					ar := Atlas_Texture_Rect {
-						rect = {atlas_pos.x + x, atlas_pos.y + y, desc.tile_width, desc.tile_height},
+						rect = {
+							atlas_pos.x + x,
+							atlas_pos.y + y,
+							desc.tile_width,
+							desc.tile_height,
+						},
 						size = {desc.tile_width, desc.tile_height},
 						name = fmt.tprintf("%s_%d_%d", sheet.base_name, row, col),
 					}
