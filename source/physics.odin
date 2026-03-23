@@ -118,15 +118,28 @@ get_moving_hitbox_for_object :: proc(
 	precalculated_delta: Maybe(vec2) = nil,
 ) -> MovingHitbox {
 	m := transform * pivot(obj.transform)
-	box := obj.hitbox.shape.(AABB)
-	c1, c2 := mat_vec_mul(m, box.min), mat_vec_mul(m, box.max)
-	return {
-		moving_shape = MovingShape{
-			shape = AABB{linalg.min(c1, c2), linalg.max(c1, c2)},
-			vel = precalculated_delta.? or_else get_pos_delta(obj, dt),
-		},
-		collision = obj.hitbox.collision,
+	vel := precalculated_delta.? or_else get_pos_delta(obj, dt)
+	switch s in obj.hitbox.shape {
+	case AABB:
+		c1, c2 := mat_vec_mul(m, s.min), mat_vec_mul(m, s.max)
+		return {
+			moving_shape = MovingShape{
+				shape = AABB{linalg.min(c1, c2), linalg.max(c1, c2)},
+				vel   = vel,
+			},
+			collision = obj.hitbox.collision,
+		}
+	case Circle:
+		scale := linalg.length(vec2{m[0][0], m[1][0]})
+		return {
+			moving_shape = MovingShape{
+				shape = Circle{pos = mat_vec_mul(m, s.pos), radius = s.radius * scale},
+				vel   = vel,
+			},
+			collision = obj.hitbox.collision,
+		}
 	}
+	panic("unhandled shape in get_moving_hitbox_for_object")
 }
 
 get_texture_aabb_for_object :: proc(obj: ^GameObject, transform: mat3) -> AABB {
@@ -335,6 +348,14 @@ physics_update :: proc(dt: f64) {
 				}
 				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
 				normal, depth := shapes_contact(a.moving_box.moving_shape.shape, b.moving_box.moving_shape.shape)
+				if a.moving_box.resolve && b.moving_box.resolve {
+					obj_a := hm.get(&game.objects, a.handle)
+					obj_b := hm.get(&game.objects, b.handle)
+					if obj_a != nil && obj_b != nil {
+						obj_a.position += normal * depth * 0.5
+						obj_b.position -= normal * depth * 0.5
+					}
+				}
 				new_coll_a := AABBCollision {
 					a = h,
 					b = b.handle,

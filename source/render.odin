@@ -152,16 +152,21 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		if .Collide in obj.tags {
 			switch s in obj.hitbox.shape {
 				case Circle:
+					m := final_transform.transform * pivot(obj.transform)
+					obj_scale := linalg.length(vec2{m[0][0], m[1][0]})
 					draw_debug_circle(
-						world_coords = mat_vec_mul(final_transform.transform, obj.hitbox.shape.(Circle).pos),
-						radius = obj.hitbox.shape.(Circle).radius,
+						world_coords = mat_vec_mul(m, s.pos),
+						radius = f32(s.radius * obj_scale * screen_conversion.scale),
 						color = rl.RED,
 						filled = false,
 					)
 				case AABB:
-					draw_debug_box(s)
+					m := final_transform.transform * pivot(obj.transform)
+					c1 := mat_vec_mul(m, s.min)
+					c2 := mat_vec_mul(m, s.max)
+					draw_debug_box(AABB{linalg.min(c1, c2), linalg.max(c1, c2)})
+			}
 		}
-t	}
 	}
 	parent_handle, has_parent := obj.parent_handle.?
 	if .Sprite in obj.tags {

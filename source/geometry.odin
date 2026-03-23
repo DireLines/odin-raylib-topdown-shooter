@@ -151,6 +151,99 @@ get_time_to_collide_aabb_aabb :: proc(
 	return get_time_to_collide_ray_aabb(ray, aabb)
 }
 
+get_time_to_collide_circle_aabb :: proc(
+	s: Circle,
+	vel: vec2,
+	wall: AABB,
+) -> (
+	t: f64,
+	side: SideName,
+	is_colliding, will_be_colliding: bool,
+) {
+	p := s.pos
+	r := s.radius
+
+	// Check if already overlapping
+	nx := clamp(p.x, wall.min.x, wall.max.x)
+	ny := clamp(p.y, wall.min.y, wall.max.y)
+	dx, dy := p.x - nx, p.y - ny
+	if dx*dx + dy*dy <= r*r {
+		is_colliding = true
+		return
+	}
+
+	best_t := math.INF_F64
+	best_side: SideName
+	found := false
+
+	// Face tests: ray (circle center) vs each face line, clipped to face extent (excludes corners)
+	if vel.x != 0 {
+		// Left face: x = wall.min.x - r
+		if t_face := (wall.min.x - r - p.x) / vel.x; t_face >= 0 && t_face <= 1 {
+			y_hit := p.y + vel.y * t_face
+			if y_hit >= wall.min.y && y_hit <= wall.max.y && t_face < best_t {
+				best_t = t_face; best_side = .left; found = true
+			}
+		}
+		// Right face: x = wall.max.x + r
+		if t_face := (wall.max.x + r - p.x) / vel.x; t_face >= 0 && t_face <= 1 {
+			y_hit := p.y + vel.y * t_face
+			if y_hit >= wall.min.y && y_hit <= wall.max.y && t_face < best_t {
+				best_t = t_face; best_side = .right; found = true
+			}
+		}
+	}
+	if vel.y != 0 {
+		// Top face: y = wall.min.y - r
+		if t_face := (wall.min.y - r - p.y) / vel.y; t_face >= 0 && t_face <= 1 {
+			x_hit := p.x + vel.x * t_face
+			if x_hit >= wall.min.x && x_hit <= wall.max.x && t_face < best_t {
+				best_t = t_face; best_side = .top; found = true
+			}
+		}
+		// Bottom face: y = wall.max.y + r
+		if t_face := (wall.max.y + r - p.y) / vel.y; t_face >= 0 && t_face <= 1 {
+			x_hit := p.x + vel.x * t_face
+			if x_hit >= wall.min.x && x_hit <= wall.max.x && t_face < best_t {
+				best_t = t_face; best_side = .bottom; found = true
+			}
+		}
+	}
+
+	// Corner tests: solve |p + vel*t - corner|^2 = r^2 for each of the 4 corners
+	corners := [4]vec2{wall.min, {wall.max.x, wall.min.y}, {wall.min.x, wall.max.y}, wall.max}
+	a_coef := linalg.dot(vel, vel)
+	if a_coef > 0 {
+		for corner in corners {
+			d := p - corner
+			b_coef := 2 * linalg.dot(d, vel)
+			c_coef := linalg.dot(d, d) - r * r
+			disc := b_coef * b_coef - 4 * a_coef * c_coef
+			if disc < 0 {continue}
+			t_hit := (-b_coef - math.sqrt(disc)) / (2 * a_coef) // entry time (smaller root)
+			if t_hit < 0 || t_hit > 1 {continue}
+			if t_hit < best_t {
+				best_t = t_hit
+				// Pick axis-aligned side from collision normal
+				normal := p + vel * t_hit - corner
+				if abs(normal.x) >= abs(normal.y) {
+					best_side = .left if normal.x < 0 else .right
+				} else {
+					best_side = .top if normal.y < 0 else .bottom
+				}
+				found = true
+			}
+		}
+	}
+
+	if found {
+		t = best_t
+		side = best_side
+		will_be_colliding = true
+	}
+	return
+}
+
 get_time_to_collide_moving_shape_aabb :: proc(
 	moving_shape: MovingShape,
 	aabb: AABB,
@@ -164,17 +257,74 @@ get_time_to_collide_moving_shape_aabb :: proc(
 			moving_aabb := MovingAABB{aabb = s, vel = moving_shape.vel}
 			return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
 		case Circle:
-			//TODO implement this properly instead of just using the aabb of the circle
-			circle_aabb := AABB{min = s.pos - vec2{s.radius, s.radius}, max = s.pos + vec2{s.radius, s.radius}}
-			moving_aabb := MovingAABB{aabb = circle_aabb, vel = moving_shape.vel}
-			return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
+			return get_time_to_collide_circle_aabb(s, moving_shape.vel, aabb)
 	}
 	panic("unhandled shape type in get_time_to_collide_moving_shape_aabb")
 }
 
-get_time_to_collide :: proc {//TODO: circles?
+get_time_to_collide_circle_circle :: proc(
+	a: Circle,
+	vel: vec2,
+	b: Circle,
+) -> (
+	t: f64,
+	side: SideName,
+	is_colliding, will_be_colliding: bool,
+) {
+	d := a.pos - b.pos
+	sum_r := a.radius + b.radius
+
+	if linalg.dot(d, d) <= sum_r * sum_r {
+		is_colliding = true
+		return
+	}
+
+	a_coef := linalg.dot(vel, vel)
+	if a_coef == 0 {return}
+	b_coef := 2 * linalg.dot(d, vel)
+	c_coef := linalg.dot(d, d) - sum_r * sum_r
+	disc := b_coef * b_coef - 4 * a_coef * c_coef
+	if disc < 0 {return}
+
+	t_hit := (-b_coef - math.sqrt(disc)) / (2 * a_coef)
+	if t_hit < 0 || t_hit > 1 {return}
+
+	// normal points from wall circle center toward player circle center
+	normal := d + vel * t_hit
+	if abs(normal.x) >= abs(normal.y) {
+		side = .left if normal.x < 0 else .right
+	} else {
+		side = .top if normal.y < 0 else .bottom
+	}
+	t = t_hit
+	will_be_colliding = true
+	return
+}
+
+get_time_to_collide_moving_shape_circle :: proc(
+	moving_shape: MovingShape,
+	circle: Circle,
+) -> (
+	t: f64,
+	side: SideName,
+	is_colliding, will_be_colliding: bool,
+) {
+	switch s in moving_shape.shape {
+	case Circle:
+		return get_time_to_collide_circle_circle(s, moving_shape.vel, circle)
+	case AABB:
+		// approximate: treat the AABB as a circle for wall testing
+		half := (moving_shape.shape.(AABB).max - moving_shape.shape.(AABB).min) * 0.5
+		approx := Circle{pos = moving_shape.shape.(AABB).min + half, radius = linalg.length(half)}
+		return get_time_to_collide_circle_circle(approx, moving_shape.vel, circle)
+	}
+	panic("unhandled shape type in get_time_to_collide_moving_shape_circle")
+}
+
+get_time_to_collide :: proc {
 	get_time_to_collide_aabb_aabb,
 	get_time_to_collide_moving_shape_aabb,
+	get_time_to_collide_moving_shape_circle,
 	get_time_to_collide_ray_aabb,
 	get_time_to_collide_ray_line,
 }
