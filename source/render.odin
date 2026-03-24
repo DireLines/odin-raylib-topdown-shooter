@@ -179,8 +179,6 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 				draw_debug_circle(
 					world_coords = mat_vec_mul(m, s.pos),
 					radius = f32(s.radius * obj_scale * screen_conversion.scale),
-					color = rl.RED,
-					filled = false,
 				)
 			case AABB:
 				m := final_transform.transform * pivot(obj.transform)
@@ -349,8 +347,8 @@ set_alpha :: proc(c: rl.Color, alpha: u8) -> rl.Color {
 draw_debug_circle :: proc(
 	world_coords: vec2,
 	radius: f32 = 10,
-	color: rl.Color = rl.RED,
-	filled: bool = true,
+	color: rl.Color = rl.GREEN,
+	filled: bool = false,
 ) {
 	append(
 		&debug_circles,
@@ -360,8 +358,8 @@ draw_debug_circle :: proc(
 draw_debug_circle_now :: proc(
 	world_coords: vec2,
 	radius: f32 = 10,
-	color: rl.Color = rl.RED,
-	filled: bool = true,
+	color: rl.Color = rl.GREEN,
+	filled: bool = false,
 ) {
 	center := world_to_screen(world_coords, screen_conversion)
 	if filled {

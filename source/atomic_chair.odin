@@ -408,7 +408,7 @@ atomic_chair_start :: proc() {
 			pivot = {64, 128},
 		},
 		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, shape = AABB{{-40, -60}, {40, 74}}}, //relative to object's pivot
+		hitbox = {layer = .Player, shape = Circle{{0, 0}, 45}}, //relative to object's pivot
 		render_info = {
 			color = rl.WHITE,
 			texture = atlas_textures[.Squatman0],

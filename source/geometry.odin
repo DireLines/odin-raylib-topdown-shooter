@@ -28,11 +28,6 @@ Circle :: struct {
 	radius: f64,
 }
 
-MovingAABB :: struct {
-	using aabb: AABB,
-	vel:        vec2,
-}
-
 CollisionShape :: union {
 	AABB,
 	Circle,
@@ -41,6 +36,16 @@ CollisionShape :: union {
 MovingShape :: struct {
 	shape: CollisionShape,
 	vel:   vec2,
+}
+
+MovingAABB :: struct {
+	using aabb: AABB,
+	vel:        vec2,
+}
+
+MovingCircle :: struct {
+	using circle: Circle,
+	vel:          vec2,
 }
 
 //point-line intersection for continuous detection
@@ -164,50 +169,57 @@ get_time_to_collide_circle_aabb :: proc(
 	r := circle.radius
 
 	// Check if already overlapping
-	nx := clamp(p.x, aabb.min.x, aabb.max.x)
-	ny := clamp(p.y, aabb.min.y, aabb.max.y)
-	dx, dy := p.x - nx, p.y - ny
-	if dx * dx + dy * dy <= r * r {
+	if aabb_circle_intersect(aabb, circle) {
 		is_colliding = true
 		return
 	}
 
-	best_t := math.INF_F64
-	best_side: SideName
+	t_best := math.INF_F64
+	side_best: SideName
 	found := false
-
-	// Face tests: ray (circle center) vs each face line, clipped to face extent (excludes corners)
-	if circle_vel.x != 0 {
-		// Left face: x = wall.min.x - r
-		if t_face := (aabb.min.x - r - p.x) / circle_vel.x; t_face >= 0 && t_face <= 1 {
-			y_hit := p.y + circle_vel.y * t_face
-			if y_hit >= aabb.min.y && y_hit <= aabb.max.y && t_face < best_t {
-				best_t = t_face; best_side = .left; found = true
-			}
-		}
-		// Right face: x = wall.max.x + r
-		if t_face := (aabb.max.x + r - p.x) / circle_vel.x; t_face >= 0 && t_face <= 1 {
-			y_hit := p.y + circle_vel.y * t_face
-			if y_hit >= aabb.min.y && y_hit <= aabb.max.y && t_face < best_t {
-				best_t = t_face; best_side = .right; found = true
-			}
+	update_best_if_needed :: #force_inline proc(
+		t_best: ^f64,
+		s_best: ^SideName,
+		found: ^bool,
+		t_new: f64,
+		s_new: SideName,
+	) {
+		if t_new > 0 && t_new < t_best^ {
+			t_best^ = t_new
+			s_best^ = s_new
+			found^ = true
 		}
 	}
-	if circle_vel.y != 0 {
-		// Top face: y = wall.min.y - r
-		if t_face := (aabb.min.y - r - p.y) / circle_vel.y; t_face >= 0 && t_face <= 1 {
-			x_hit := p.x + circle_vel.x * t_face
-			if x_hit >= aabb.min.x && x_hit <= aabb.max.x && t_face < best_t {
-				best_t = t_face; best_side = .top; found = true
-			}
-		}
-		// Bottom face: y = wall.max.y + r
-		if t_face := (aabb.max.y + r - p.y) / circle_vel.y; t_face >= 0 && t_face <= 1 {
-			x_hit := p.x + circle_vel.x * t_face
-			if x_hit >= aabb.min.x && x_hit <= aabb.max.x && t_face < best_t {
-				best_t = t_face; best_side = .bottom; found = true
-			}
-		}
+
+
+	// 4 flat sides of the Minkowski sum (only valid in the non-corner region)
+	// mirrors get_time_to_collide_ray_aabb but with each side offset outward by r
+	sides := [SideName]AABBSide {
+		.left = {
+			start = {aabb.min.x - r, aabb.min.y},
+			length = aabb.max.y - aabb.min.y,
+			direction = .vertical,
+		},
+		.right = {
+			start = {aabb.max.x + r, aabb.min.y},
+			length = aabb.max.y - aabb.min.y,
+			direction = .vertical,
+		},
+		.top = {
+			start = {aabb.min.x, aabb.min.y - r},
+			length = aabb.max.x - aabb.min.x,
+			direction = .horizontal,
+		},
+		.bottom = {
+			start = {aabb.min.x, aabb.max.y + r},
+			length = aabb.max.x - aabb.min.x,
+			direction = .horizontal,
+		},
+	}
+	ray := Ray{circle.pos, circle_vel}
+	#unroll for s in SideName {
+		t_s, will_s := get_time_to_collide_ray_line(ray, sides[s])
+		if will_s {update_best_if_needed(&t_best, &side_best, &found, t_s, s)}
 	}
 
 	// Corner tests: solve |p + vel*t - corner|^2 = r^2 for each of the 4 corners
@@ -222,14 +234,14 @@ get_time_to_collide_circle_aabb :: proc(
 			if disc < 0 {continue}
 			t_hit := (-b_coef - math.sqrt(disc)) / (2 * a_coef) // entry time (smaller root)
 			if t_hit < 0 || t_hit > 1 {continue}
-			if t_hit < best_t {
-				best_t = t_hit
+			if t_hit < t_best {
+				t_best = t_hit
 				// Pick axis-aligned side from collision normal
 				normal := p + circle_vel * t_hit - corner
 				if abs(normal.x) >= abs(normal.y) {
-					best_side = .left if normal.x < 0 else .right
+					side_best = .left if normal.x < 0 else .right
 				} else {
-					best_side = .top if normal.y < 0 else .bottom
+					side_best = .top if normal.y < 0 else .bottom
 				}
 				found = true
 			}
@@ -237,8 +249,8 @@ get_time_to_collide_circle_aabb :: proc(
 	}
 
 	if found {
-		t = best_t
-		side = best_side
+		t = t_best
+		side = side_best
 		will_be_colliding = true
 	}
 	return
