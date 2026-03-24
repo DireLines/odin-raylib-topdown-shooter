@@ -29,7 +29,7 @@ CollisionProperties :: struct {
 }
 
 Hitbox :: struct {
-	shape:           Shape,
+	shape:           CollisionShape,
 	using collision: CollisionProperties,
 }
 

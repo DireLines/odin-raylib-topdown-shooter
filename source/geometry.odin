@@ -33,13 +33,13 @@ MovingAABB :: struct {
 	vel:        vec2,
 }
 
-Shape :: union {
+CollisionShape :: union {
 	AABB,
 	Circle,
 }
 
 MovingShape :: struct {
-	shape: Shape,
+	shape: CollisionShape,
 	vel:   vec2,
 }
 
@@ -335,7 +335,7 @@ get_time_to_collide :: proc {
 	get_time_to_collide_ray_line,
 }
 
-shapes_contact :: proc(a, b: Shape) -> (normal: vec2, depth: f64) {
+shapes_contact :: proc(a, b: CollisionShape) -> (normal: vec2, depth: f64) {
 	switch s_a in a {
 	case AABB:
 		switch s_b in b {
@@ -414,7 +414,7 @@ circle_aabb_contact :: proc(circle: Circle, box: AABB) -> (normal: vec2, depth: 
 	return
 }
 
-shapes_intersect :: proc(a, b: Shape) -> bool {
+shapes_intersect :: proc(a, b: CollisionShape) -> bool {
 	//TODO: obviously this doesnt scale.
 	// Need a better solution when we have more shapes. With only 2 its fine for now.
 	switch s_a in a {
