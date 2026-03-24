@@ -27,6 +27,7 @@ help: #show this help
 		sed 's/:.*# */\t/' | \
 		column -t -s '	'
 
+#build targets
 run: #just quickly build and run
 	odin build $(MAIN_DIR) -out:$(EXE) && ./$(EXE)
 speed: #build and run with optimizations on
@@ -41,12 +42,6 @@ perf: #build with optimizations on and verbose timing logs enabled, for tracking
 	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:timing_logs=true
 compile-perf: #build with verbose compiler output to troubleshoot slow compiles (probably not much you can do about it lol)
 	odin build $(MAIN_DIR) -out:$(EXE) -show-timings -show-more-timings -o:speed
-atlas: #run build script to generate atlas.png and atlas.odin from the textures folder
-	odin run source/atlas_builder
-palette: #open the atlas palette viewer (zoomable/pannable, hover to inspect, click to copy name)
-	odin run source/palette_tool
-
-# --- Hot reload ---
 
 hot-reload: hot-reload-libs hot-reload-dll hot-reload-exe #build hot reload game and runner
 
@@ -82,8 +77,6 @@ hot-reload-exe: #build the hot reload runner executable (skipped if already runn
 hot-reload-run: hot-reload #build and run the hot reload game
 	./$(HOT_EXE)
 
-# --- Web build ---
-
 web: #build for web using emscripten
 	@mkdir -p $(WEB_DIR)
 	@export EMSDK_QUIET=1; \
@@ -102,8 +95,6 @@ web: #build for web using emscripten
 	rm $(WEB_DIR)/game.wasm.o; \
 	echo "Web build created in $(WEB_DIR)"
 
-# --- Deploy ---
-
 deploy: #deploy build/web to GitHub Pages (gh-pages branch)
 	@if [ ! -f "$(WEB_DIR)/index.html" ]; then echo "Error: $(WEB_DIR)/index.html not found. Run 'make web' first."; exit 1; fi
 	@echo "Deploying $(WEB_DIR) to gh-pages branch..."
@@ -116,6 +107,12 @@ deploy: #deploy build/web to GitHub Pages (gh-pages branch)
 	@echo "Deployed! Visit: https://direlines.github.io/odin-raylib-topdown-shooter/"
 
 web-deploy: web deploy #build for web then deploy to GitHub Pages
+
+# build tools
+atlas: #run build script to generate atlas.png and atlas.odin from the textures folder
+	odin run build_tools/atlas_builder
+palette: #open the atlas palette viewer (zoomable/pannable, hover to inspect, click to copy name)
+	odin run build_tools/palette_tool
 
 .PHONY: help run speed release debug mem perf compile-perf atlas palette \
        hot-reload hot-reload-libs hot-reload-dll hot-reload-exe hot-reload-run web \
