@@ -139,7 +139,7 @@ UIStatBar :: struct {
 }
 default_ui_stat_bar :: proc() -> UIStatBar {
 	return UIStatBar {
-		disp_length = 100,
+		disp_length = 200,
 		filled_color = rl.GREEN,
 		unfilled_color = rl.GRAY,
 		num_ticks = 10,
@@ -490,8 +490,10 @@ atomic_chair_start :: proc() {
 	p.score_label_handle = spawn_object(score_label)
 	stat_bar_info := default_ui_stat_bar()
 	stat_bar_info.max_value = 30
-	stat_bar_info.num_ticks = 6
+	stat_bar_info.num_ticks = 20
 	stat_bar_info.current_value = 12
+	stat_bar_info.incomplete_tick_display_mode = .Ceil
+	stat_bar_info.interp_tick_color = true
 	example_stat_bar = spawn_ui_stat_bar(
 		"example",
 		{200, 200},
@@ -1143,7 +1145,7 @@ draw_ui_stat_bar :: proc(bar: ^GameObject) {
 				color = unfilled_color
 			}
 			if stat_bar.interp_tick_color {
-				color = lerp_colors(filled_color, unfilled_color, frac_incomplete_tick_filled)
+				color = lerp_colors(unfilled_color, filled_color, frac_incomplete_tick_filled)
 			}
 		}
 		rl.DrawRectangle(
