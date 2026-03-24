@@ -1,6 +1,7 @@
 #+feature dynamic-literals
 package game
 
+import "base:intrinsics"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
@@ -16,6 +17,7 @@ MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
 BEE_YELLOW :: rl.Color{246, 208, 58, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
+STAT_BAR_UNFILLED_TICK_COLOR :: rl.Color{50, 50, 50, 255}
 //speeds in world units per second
 PLAYER_MAX_SPEED :: 40000
 PLAYER_LINEAR_DRAG :: 5.0
@@ -25,12 +27,8 @@ ENEMY_BULLET_SPEED :: 500
 BULLET_KNOCKBACK_STRENGTH :: 10
 ENEMY_LINEAR_DRAG :: 5.0
 ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
-FULL_HEART_TEXTURE :: TextureName.Hud_Heart_Kenney_New_Platformer_Pack_1_1_Large
-HALF_HEART_TEXTURE :: TextureName.Hud_Heart_Half_Kenney_New_Platformer_Pack_1_1_Large
-EMPTY_HEART_TEXTURE :: TextureName.Hud_Heart_Empty_Kenney_New_Platformer_Pack_1_1_Large
 PLAYER_BULLET_TEXTURE :: TextureName.Arrow_Right_Kenney_Board_Game_Icons_128px
 INGAME_UI_PADDING :: 20.0
-MAX_PLAYER_HEARTS :: 3
 
 UI_MAIN_FONT_SIZE :: 72
 UI_SECONDARY_FONT_SIZE :: 42
@@ -74,6 +72,7 @@ EnemyState :: enum {
 	Dead,
 }
 
+example_stat_bar: GameObjectHandle
 //object variants
 //in contrast to tags, each object has exactly one variant
 //GameObject has a field called `variant` which is this GameObjectVariant union type
@@ -86,7 +85,6 @@ Player :: struct {
 	state:              AliveDeadState,
 	score:              int,
 	score_label_handle: GameObjectHandle,
-	heart_handles:      [MAX_PLAYER_HEARTS]GameObjectHandle,
 }
 Enemy :: struct {
 	health:         int,
@@ -105,6 +103,50 @@ UIButton :: struct {
 	on_click_start:       proc(info: ButtonCallbackInfo), //triggered when mouse button down and hovering button
 	on_click:             proc(info: ButtonCallbackInfo), //triggered when mouse button up and hovering button - most of the time this is what you want
 }
+UISlider :: struct {
+	min_value, current_value, max_value, default_value: f64,
+	left_pos, right_pos:                                f64, //screen coords, for display
+	snap_increment:                                     f64, //0 = no snapping
+	show_percentage:                                    bool,
+	on_set_value:                                       proc(info: SliderCallbackInfo),
+	handle_handle:                                      GameObjectHandle,
+}
+SliderCallbackInfo :: struct {
+	game:          ^Game,
+	slider:        GameObjectInst(UISlider),
+	slider_handle: GameObjectHandle,
+	new_value:     f64,
+}
+
+//a bar displaying the current value of a stat
+UIStatBar :: struct {
+	min_value, current_value, max_value: f64,
+	disp_length:                         f64,
+	filled_color, unfilled_color:        rl.Color,
+	num_ticks:                           int,
+
+	// the display behavior for the partially filled tick at the end
+	incomplete_tick_display_mode:        enum {
+		Exact, //fill exact fraction of the tick
+		Round, //round to closest tick
+		Ceil, //round to nearest tick above
+		Floor, // round to nearest tick below
+	},
+
+	//if true, lerp the color of incomplete tick between filled_color and unfilled_color
+	//if false, it will be filled_color
+	interp_tick_color:                   bool,
+}
+default_ui_stat_bar :: proc() -> UIStatBar {
+	return UIStatBar {
+		disp_length = 100,
+		filled_color = rl.GREEN,
+		unfilled_color = rl.GRAY,
+		num_ticks = 10,
+		incomplete_tick_display_mode = .Exact,
+		interp_tick_color = false,
+	}
+}
 DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
 	DefaultVariant,
@@ -113,6 +155,7 @@ GameObjectVariant :: union {
 	Bullet,
 	UIButton,
 	UISlider,
+	UIStatBar,
 }
 GameSpecificProps :: struct {
 	text: string,
@@ -445,35 +488,16 @@ atomic_chair_start :: proc() {
 	}
 	p := &player.variant.(Player)
 	p.score_label_handle = spawn_object(score_label)
-
-	{
-		PADDING_BETWEEN_HEARTS :: 60.0
-		HEART_RENDER_SCALE :: 0.5
-		for &heart_handle, i in p.heart_handles {
-			x :=
-				WINDOW_WIDTH -
-				INGAME_UI_PADDING -
-				f64(MAX_PLAYER_HEARTS - i) * PADDING_BETWEEN_HEARTS
-			heart_handle = spawn_object(
-				GameObject {
-					name = "heart",
-					transform = {
-						position = {x, INGAME_UI_PADDING},
-						scale = {HEART_RENDER_SCALE, HEART_RENDER_SCALE},
-						pivot = {0, 0},
-					},
-					render_info = {
-						texture = atlas_textures[FULL_HEART_TEXTURE],
-						color = rl.WHITE,
-						render_layer = uint(RenderLayer.UI),
-						keep_original_dimensions = true,
-					},
-					tags = {.Sprite},
-					parent_handle = game.screen_space_parent_handle,
-				},
-			)
-		}
-	}
+	stat_bar_info := default_ui_stat_bar()
+	stat_bar_info.max_value = 30
+	stat_bar_info.num_ticks = 6
+	stat_bar_info.current_value = 12
+	example_stat_bar = spawn_ui_stat_bar(
+		"example",
+		{200, 200},
+		game.screen_space_parent_handle,
+		stat_bar_info,
+	)
 }
 
 
@@ -555,6 +579,11 @@ atomic_chair_update :: proc(dt: f64) {
 	timer := timer()
 	handle_ui_buttons()
 	handle_ui_sliders()
+	statbar := object_inst(example_stat_bar, UIStatBar)
+	statbar.current_value += 0.1
+	if statbar.current_value > statbar.max_value {
+		statbar.current_value -= statbar.max_value
+	}
 	if game.paused {
 		//TODO additional pause menu stuff?
 		return
@@ -685,21 +714,6 @@ atomic_chair_update :: proc(dt: f64) {
 			score_label.text = fmt.aprintf("Score: %d", player.score)
 		} else {
 			score_label.text = ""
-		}
-	}
-	//update health hearts
-	{
-		for i in 0 ..< MAX_PLAYER_HEARTS {
-			heart, ok := hm.get(&game.objects, player.heart_handles[i])
-			if !ok {continue}
-			health_in_slot := player.health - i * 2
-			if health_in_slot >= 2 {
-				heart.texture = atlas_textures[FULL_HEART_TEXTURE]
-			} else if health_in_slot == 1 {
-				heart.texture = atlas_textures[HALF_HEART_TEXTURE]
-			} else {
-				heart.texture = atlas_textures[EMPTY_HEART_TEXTURE]
-			}
 		}
 	}
 	{it := hm.make_iter(&game.objects)
@@ -913,20 +927,6 @@ play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
 	rl.PlaySound(sound)
 }
 
-UISlider :: struct {
-	min_value, current_value, max_value, default_value: f64,
-	left_pos, right_pos:                                f64, //screen coords, for display
-	snap_increment:                                     f64, //0 = no snapping
-	show_percentage:                                    bool,
-	on_set_value:                                       proc(info: SliderCallbackInfo),
-	handle_handle:                                      GameObjectHandle,
-}
-SliderCallbackInfo :: struct {
-	game:          ^Game,
-	slider:        GameObjectInst(UISlider),
-	slider_handle: GameObjectHandle,
-	new_value:     f64,
-}
 
 get_slider_handle_text :: proc(frac, val: f64, show_percentage: bool = false) -> string {
 	return(
@@ -1074,4 +1074,93 @@ spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 		music_vol_handle,
 		music_vol_label,
 	}
+}
+
+spawn_ui_stat_bar :: proc(
+	name: string,
+	pos: vec2,
+	parent: Maybe(GameObjectHandle),
+	stat_bar_info: UIStatBar,
+) -> GameObjectHandle {
+	return spawn_object(
+		GameObject {
+			name = fmt.aprint(name, "bar"),
+			transform = {position = pos, scale = {1, 1}},
+			render_info = {
+				color = rl.WHITE,
+				render_layer = uint(RenderLayer.UI),
+				draw = draw_ui_stat_bar,
+			},
+			tags = {.CustomDraw},
+			variant = stat_bar_info,
+		},
+	)
+}
+draw_ui_stat_bar :: proc(bar: ^GameObject) {
+	stat_bar := object_inst(bar, UIStatBar)
+	//for each tick, draw a rectangle
+	frac_bar_filled :=
+		(stat_bar.current_value - stat_bar.min_value) / (stat_bar.max_value - stat_bar.min_value)
+	num_ticks_filled := int(math.floor(frac_bar_filled * f64(stat_bar.num_ticks)))
+	tick_width := stat_bar.disp_length / f64(stat_bar.num_ticks)
+	tick_height :: 20
+	transform := game.final_transforms[bar.handle.idx].transform
+	top_left := mat_vec_mul(transform, {0, 0})
+	bottom_right := mat_vec_mul(transform, {1, 1})
+	filled_color, unfilled_color := stat_bar.filled_color, stat_bar.unfilled_color
+	for i in 0 ..< stat_bar.num_ticks {
+		pos := vec2{top_left.x + f64(i) * tick_width, top_left.y}
+		color := filled_color
+		if i >= num_ticks_filled {
+			color = unfilled_color
+		}
+		tick_disp_width := tick_width
+		if i == num_ticks_filled {
+			//handle partially filled tick
+			single_tick_value :=
+				(stat_bar.max_value - stat_bar.min_value) / f64(stat_bar.num_ticks)
+			filled_ticks_total := f64(num_ticks_filled) * single_tick_value
+			frac_incomplete_tick_filled :=
+				(stat_bar.current_value - filled_ticks_total) / single_tick_value
+			switch stat_bar.incomplete_tick_display_mode {
+			case .Exact:
+				tick_disp_width = tick_width * frac_incomplete_tick_filled
+				color = filled_color
+				//also display the unfilled remainder of the tick
+				rl.DrawRectangle(
+					i32(pos.x + tick_disp_width),
+					i32(pos.y),
+					i32(tick_width - tick_disp_width) + 1,
+					i32(tick_height * (bottom_right - top_left).y),
+					unfilled_color,
+				)
+
+			case .Round:
+				color = frac_incomplete_tick_filled < 0.5 ? unfilled_color : filled_color
+			case .Ceil:
+				color = filled_color
+			case .Floor:
+				color = unfilled_color
+			}
+			if stat_bar.interp_tick_color {
+				color = lerp_colors(filled_color, unfilled_color, frac_incomplete_tick_filled)
+			}
+		}
+		rl.DrawRectangle(
+			i32(pos.x),
+			i32(pos.y),
+			i32(tick_disp_width) + 1, //handle seams
+			i32(tick_height * (bottom_right - top_left).y),
+			color,
+		)
+	}
+}
+
+
+lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
+	result: rl.Color
+	#unroll for i in 0 ..< 4 {
+		result[i] = u8(math.lerp(f64(a[i]), f64(b[i]), t))
+	}
+	return result
 }

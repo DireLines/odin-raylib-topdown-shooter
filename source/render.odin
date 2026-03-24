@@ -17,7 +17,7 @@ RenderInfo :: struct {
 	using text_render_info: TextRenderInfo,
 	render_layer:           uint,
 	using import_mode:      TextureImportMode,
-	draw:                   proc(obj: ^GameObject),
+	draw:                   proc(obj: ^GameObject), //custom draw proc, not used unless .CustomDraw is on in object's tags
 }
 
 TextureImportMode :: struct {
