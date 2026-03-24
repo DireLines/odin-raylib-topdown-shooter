@@ -29,12 +29,12 @@ CollisionProperties :: struct {
 }
 
 Hitbox :: struct {
-	shape:       Shape,
+	shape:           CollisionShape,
 	using collision: CollisionProperties,
 }
 
 MovingHitbox :: struct {
-	moving_shape:       MovingShape,
+	moving_shape:    MovingShape,
 	using collision: CollisionProperties,
 }
 
@@ -121,20 +121,23 @@ get_moving_hitbox_for_object :: proc(
 	vel := precalculated_delta.? or_else get_pos_delta(obj, dt)
 	switch s in obj.hitbox.shape {
 	case AABB:
-		c1, c2 := mat_vec_mul(m, s.min), mat_vec_mul(m, s.max)
+		c1, c2 := mat_vec_mul(m, s.CollisionShape), mat_vec_mul(m, s.CollisionShape)
 		return {
-			moving_shape = MovingShape{
+			moving_shape = MovingShape {
 				shape = AABB{linalg.min(c1, c2), linalg.max(c1, c2)},
-				vel   = vel,
+				vel = vel,
 			},
 			collision = obj.hitbox.collision,
 		}
 	case Circle:
 		scale := linalg.length(vec2{m[0][0], m[1][0]})
 		return {
-			moving_shape = MovingShape{
-				shape = Circle{pos = mat_vec_mul(m, s.pos), radius = s.radius * scale},
-				vel   = vel,
+			moving_shape = MovingShape {
+				shape = Circle {
+					CollisionShape = mat_vec_mul(m, s.CollisionShape),
+					CollisionShape = s.CollisionShape * scale,
+				},
+				vel = vel,
 			},
 			collision = obj.hitbox.collision,
 		}
@@ -335,7 +338,10 @@ physics_update :: proc(dt: f64) {
 				if a.handle == b.handle {continue} 	//will only be useful when objects have multiple hitboxes
 				if .Collide not_in b_obj.tags {continue}
 				if !layers_can_collide(a.moving_box.layer, b.moving_box.layer) {continue}
-				if !shapes_intersect(a.moving_box.moving_shape.shape, b.moving_box.moving_shape.shape) {continue}
+				if !shapes_intersect(
+					a.moving_box.moving_shape.shape,
+					b.moving_box.moving_shape.shape,
+				) {continue}
 				//annoying and costly edge case - collision can be detected multiple times in multiple chunks, need to dedup by object id pair
 				if a.handle in game.objects_in_multiple_chunks &&
 				   b.handle in game.objects_in_multiple_chunks {
@@ -347,7 +353,10 @@ physics_update :: proc(dt: f64) {
 					}
 				}
 				//ok, collision is officially happening for this pair of objects. add to game.collisions, symmetrically
-				normal, depth := shapes_contact(a.moving_box.moving_shape.shape, b.moving_box.moving_shape.shape)
+				normal, depth := shapes_contact(
+					a.moving_box.moving_shape.shape,
+					b.moving_box.moving_shape.shape,
+				)
 				if a.moving_box.resolve && b.moving_box.resolve {
 					obj_a := hm.get(&game.objects, a.handle)
 					obj_b := hm.get(&game.objects, b.handle)
@@ -499,7 +508,10 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 					aabb = get_tile_aabb(tile_id),
 					vel  = {0, 0},
 				}
-				t, side, _, will_be_colliding := get_time_to_collide(obj_box.moving_shape, tile_aabb)
+				t, side, _, will_be_colliding := get_time_to_collide(
+					obj_box.moving_shape,
+					tile_aabb,
+				)
 				if will_be_colliding {
 					if t < offset_threshold {
 						offsets_needed[side] = true
