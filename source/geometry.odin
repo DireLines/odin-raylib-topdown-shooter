@@ -134,12 +134,14 @@ get_time_to_collide_ray_aabb :: proc(
 	return t_min, side_min, false, true
 }
 
+
 //aabb-aabb intersection for continuous detection
 get_time_to_collide_aabb_aabb :: proc(
 	a, b: MovingAABB,
 ) -> (
 	t: f64,
 	side: SideName,
+	normal: vec2,
 	is_colliding, will_be_colliding: bool,
 ) {
 	//account for motion by subtracting b's vel from both sides
@@ -153,7 +155,9 @@ get_time_to_collide_aabb_aabb :: proc(
 		min = b.min - a_half_dims,
 		max = b.max + a_half_dims,
 	}
-	return get_time_to_collide_ray_aabb(ray, aabb)
+	t, side, is_colliding, will_be_colliding = get_time_to_collide_ray_aabb(ray, aabb)
+	normal = WALL_NORMALS[side]
+	return
 }
 
 get_time_to_collide_circle_aabb :: proc(
@@ -163,9 +167,9 @@ get_time_to_collide_circle_aabb :: proc(
 ) -> (
 	t: f64,
 	side: SideName,
+	normal: vec2,
 	is_colliding, will_be_colliding: bool,
 ) {
-	p := circle.pos
 	r := circle.radius
 
 	// Check if already overlapping
@@ -174,24 +178,28 @@ get_time_to_collide_circle_aabb :: proc(
 		return
 	}
 
-	t_best := math.INF_F64
-	side_best: SideName
+	CollisionRunningInfo :: struct {
+		t:      f64,
+		side:   SideName,
+		normal: vec2,
+	}
+	best := CollisionRunningInfo {
+		t = math.INF_F64,
+	}
 	found := false
 	update_best_if_needed :: #force_inline proc(
-		t_best: ^f64,
-		s_best: ^SideName,
+		best: ^CollisionRunningInfo,
+		new: CollisionRunningInfo,
 		found: ^bool,
-		t_new: f64,
-		s_new: SideName,
 	) {
-		if t_new > 0 && t_new < t_best^ {
-			t_best^ = t_new
-			s_best^ = s_new
+		if new.t > 0 && new.t < best.t {
+			best^ = new
 			found^ = true
 		}
 	}
 
 
+	ray := Ray{circle.pos, circle_vel}
 	// 4 flat sides of the Minkowski sum (only valid in the non-corner region)
 	// mirrors get_time_to_collide_ray_aabb but with each side offset outward by r
 	sides := [SideName]AABBSide {
@@ -216,10 +224,9 @@ get_time_to_collide_circle_aabb :: proc(
 			direction = .horizontal,
 		},
 	}
-	ray := Ray{circle.pos, circle_vel}
 	#unroll for s in SideName {
 		t_s, will_s := get_time_to_collide_ray_line(ray, sides[s])
-		if will_s {update_best_if_needed(&t_best, &side_best, &found, t_s, s)}
+		if will_s {update_best_if_needed(&best, CollisionRunningInfo{t_s, s, WALL_NORMALS[s]}, &found)}
 	}
 
 	// Corner tests: solve |p + vel*t - corner|^2 = r^2 for each of the 4 corners
@@ -227,21 +234,22 @@ get_time_to_collide_circle_aabb :: proc(
 	a_coef := linalg.dot(circle_vel, circle_vel)
 	if a_coef > 0 {
 		for corner in corners {
-			d := p - corner
+			d := circle.pos - corner
 			b_coef := 2 * linalg.dot(d, circle_vel)
 			c_coef := linalg.dot(d, d) - r * r
 			disc := b_coef * b_coef - 4 * a_coef * c_coef
 			if disc < 0 {continue}
 			t_hit := (-b_coef - math.sqrt(disc)) / (2 * a_coef) // entry time (smaller root)
 			if t_hit < 0 || t_hit > 1 {continue}
-			if t_hit < t_best {
-				t_best = t_hit
+			if t_hit < best.t {
+				best.t = t_hit
 				// Pick axis-aligned side from collision normal
-				normal := p + circle_vel * t_hit - corner
+				normal := circle.pos + circle_vel * t_hit - corner
+				best.normal = normal
 				if abs(normal.x) >= abs(normal.y) {
-					side_best = .left if normal.x < 0 else .right
+					best.side = .left if normal.x < 0 else .right
 				} else {
-					side_best = .top if normal.y < 0 else .bottom
+					best.side = .top if normal.y < 0 else .bottom
 				}
 				found = true
 			}
@@ -249,8 +257,8 @@ get_time_to_collide_circle_aabb :: proc(
 	}
 
 	if found {
-		t = t_best
-		side = side_best
+		t = best.t
+		side = best.side
 		will_be_colliding = true
 	}
 	return
@@ -262,6 +270,7 @@ get_time_to_collide_moving_shape_aabb :: proc(
 ) -> (
 	t: f64,
 	side: SideName,
+	normal: vec2,
 	is_colliding, will_be_colliding: bool,
 ) {
 	switch s in moving_shape.shape {
@@ -284,6 +293,7 @@ get_time_to_collide_circle_circle :: proc(
 ) -> (
 	t: f64,
 	side: SideName,
+	normal: vec2,
 	is_colliding, will_be_colliding: bool,
 ) {
 	d := a.pos - b.pos
@@ -305,7 +315,7 @@ get_time_to_collide_circle_circle :: proc(
 	if t_hit < 0 || t_hit > 1 {return}
 
 	// normal points from wall circle center toward player circle center
-	normal := d + a_vel * t_hit
+	normal = d + a_vel * t_hit
 	if abs(normal.x) >= abs(normal.y) {
 		side = .left if normal.x < 0 else .right
 	} else {
@@ -322,6 +332,7 @@ get_time_to_collide_moving_shape_circle :: proc(
 ) -> (
 	t: f64,
 	side: SideName,
+	normal: vec2,
 	is_colliding, will_be_colliding: bool,
 ) {
 	switch s in moving_shape.shape {

@@ -505,7 +505,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 					aabb = get_tile_aabb(tile_id),
 					vel  = {0, 0},
 				}
-				t, side, _, will_be_colliding := get_time_to_collide(
+				t, side, normal, _, will_be_colliding := get_time_to_collide(
 					obj_box.moving_shape,
 					tile_aabb,
 				)

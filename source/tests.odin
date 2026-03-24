@@ -186,7 +186,7 @@ test_collision_procs :: proc(t: ^testing.T) {
 			},
 		}
 		for test in tests {
-			_, side, _, will_be_colliding := get_time_to_collide(test.a, test.b)
+			_, side, _, _, will_be_colliding := get_time_to_collide(test.a, test.b)
 			testing.expect(t, will_be_colliding == test.expected_collide, "result doesn't match")
 			testing.expect(t, side == test.expected_side, "side doesn't matches")
 		}
