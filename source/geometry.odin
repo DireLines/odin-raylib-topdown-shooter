@@ -244,7 +244,7 @@ get_time_to_collide_circle_aabb :: proc(
 			if t_hit < best.t {
 				best.t = t_hit
 				// Pick axis-aligned side from collision normal
-				normal := circle.pos + circle_vel * t_hit - corner
+				normal := linalg.normalize(circle.pos + circle_vel * t_hit - corner)
 				best.normal = normal
 				if abs(normal.x) >= abs(normal.y) {
 					best.side = .left if normal.x < 0 else .right
@@ -259,6 +259,7 @@ get_time_to_collide_circle_aabb :: proc(
 	if found {
 		t = best.t
 		side = best.side
+		normal = best.normal
 		will_be_colliding = true
 	}
 	return

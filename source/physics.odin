@@ -488,6 +488,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 		t_min: f64 = 1
 		will_collide := false
 		side_min: SideName
+		normal_min: vec2
 		tile_min: TilemapTileId
 		tiles_min := make([dynamic]TilemapTileId, allocator = context.temp_allocator) //in case of ties
 		offsets_needed := [SideName]bool{}
@@ -518,6 +519,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 						t_min = t
 						clear(&tiles_min)
 						side_min = side
+						normal_min = normal
 						tile_min = tile_id
 					}
 					if t <= t_min {
@@ -537,7 +539,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 					obj.position += WALL_NORMALS[s] * epsilon
 				}
 			}
-			wall_normal := WALL_NORMALS[side_min]
+			wall_normal := normal_min
 			//glide against wall - cancel component of velocity perpendicular to wall
 			obj.velocity -= linalg.dot(obj.velocity, wall_normal) * wall_normal
 			pos_delta -= linalg.dot(pos_delta, wall_normal) * wall_normal
