@@ -110,9 +110,9 @@ web-deploy: web deploy #build for web then deploy to GitHub Pages
 
 # build tools
 atlas: #run build script to generate atlas.png and atlas.odin from the textures folder
-	odin run build_tools/atlas_builder
+	odin run tools/atlas_builder
 palette: #open the atlas palette viewer (zoomable/pannable, hover to inspect, click to copy name)
-	odin run build_tools/palette_tool
+	odin run tools/palette_tool
 
 .PHONY: help run speed release debug mem perf compile-perf atlas palette \
        hot-reload hot-reload-libs hot-reload-dll hot-reload-exe hot-reload-run web \
