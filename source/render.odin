@@ -173,20 +173,20 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	when draw_debug_shapes {
 		if .Collide in obj.tags {
 			switch s in obj.hitbox.shape {
-			case Circle:
-				m := final_transform.transform * pivot(obj.transform)
-				obj_scale := linalg.length(vec2{m[0][0], m[1][0]})
-				draw_debug_circle(
-					world_coords = mat_vec_mul(m, s.CollisionShape),
-					radius = f32(s.CollisionShape * obj_scale * screen_conversion.scale),
-					color = rl.RED,
-					filled = false,
-				)
-			case AABB:
-				m := final_transform.transform * pivot(obj.transform)
-				c1 := mat_vec_mul(m, s.CollisionShape)
-				c2 := mat_vec_mul(m, s.CollisionShape)
-				draw_debug_box(AABB{linalg.min(c1, c2), linalg.max(c1, c2)})
+				case Circle:
+					m := final_transform.transform * pivot(obj.transform)
+					obj_scale := linalg.length(vec2{m[0][0], m[1][0]})
+					draw_debug_circle(
+						world_coords = mat_vec_mul(m, s.pos),
+						radius = f32(s.radius * obj_scale * screen_conversion.scale),
+						color = rl.RED,
+						filled = false,
+					)
+				case AABB:
+					m := final_transform.transform * pivot(obj.transform)
+					c1 := mat_vec_mul(m, s.min)
+					c2 := mat_vec_mul(m, s.max)
+					draw_debug_box(AABB{linalg.min(c1, c2), linalg.max(c1, c2)})
 			}
 		}
 	}
@@ -519,7 +519,7 @@ render :: proc() {
 			for c in v {
 				#partial switch info in c.info {
 				case DiscreteCollision:
-				// draw contact normal as a line from origin (no world pos available here, just visualize it exists)
+					// draw contact normal as a line from origin (no world pos available here, just visualize it exists)
 				}
 			}
 		}
