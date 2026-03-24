@@ -39,8 +39,8 @@ Shape :: union {
 }
 
 MovingShape :: struct {
-	shape:	Shape,
-	vel:		vec2,
+	shape: Shape,
+	vel:   vec2,
 }
 
 //point-line intersection for continuous detection
@@ -167,7 +167,7 @@ get_time_to_collide_circle_aabb :: proc(
 	nx := clamp(p.x, wall.min.x, wall.max.x)
 	ny := clamp(p.y, wall.min.y, wall.max.y)
 	dx, dy := p.x - nx, p.y - ny
-	if dx*dx + dy*dy <= r*r {
+	if dx * dx + dy * dy <= r * r {
 		is_colliding = true
 		return
 	}
@@ -253,11 +253,14 @@ get_time_to_collide_moving_shape_aabb :: proc(
 	is_colliding, will_be_colliding: bool,
 ) {
 	switch s in moving_shape.shape {
-		case AABB:
-			moving_aabb := MovingAABB{aabb = s, vel = moving_shape.vel}
-			return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
-		case Circle:
-			return get_time_to_collide_circle_aabb(s, moving_shape.vel, aabb)
+	case AABB:
+		moving_aabb := MovingAABB {
+			aabb = s,
+			vel  = moving_shape.vel,
+		}
+		return get_time_to_collide_aabb_aabb(moving_aabb, MovingAABB{aabb = aabb, vel = {0, 0}})
+	case Circle:
+		return get_time_to_collide_circle_aabb(s, moving_shape.vel, aabb)
 	}
 	panic("unhandled shape type in get_time_to_collide_moving_shape_aabb")
 }
@@ -315,7 +318,10 @@ get_time_to_collide_moving_shape_circle :: proc(
 	case AABB:
 		// approximate: treat the AABB as a circle for wall testing
 		half := (moving_shape.shape.(AABB).max - moving_shape.shape.(AABB).min) * 0.5
-		approx := Circle{pos = moving_shape.shape.(AABB).min + half, radius = linalg.length(half)}
+		approx := Circle {
+			pos    = moving_shape.shape.(AABB).min + half,
+			radius = linalg.length(half),
+		}
 		return get_time_to_collide_circle_circle(approx, moving_shape.vel, circle)
 	}
 	panic("unhandled shape type in get_time_to_collide_moving_shape_circle")
@@ -412,20 +418,20 @@ shapes_intersect :: proc(a, b: Shape) -> bool {
 	//TODO: obviously this doesnt scale.
 	// Need a better solution when we have more shapes. With only 2 its fine for now.
 	switch s_a in a {
+	case AABB:
+		switch s_b in b {
 		case AABB:
-			switch s_b in b {
-				case AABB:
-					return aabb_intersect(s_a, s_b)
-				case Circle:
-					return aabb_circle_intersect(s_a, s_b)
-			}
+			return aabb_intersect(s_a, s_b)
 		case Circle:
-			switch s_b in b {
-				case AABB:
-					return aabb_circle_intersect(s_b, s_a)
-				case Circle:
-					return circle_intersect(s_a, s_b)
-			}
+			return aabb_circle_intersect(s_a, s_b)
+		}
+	case Circle:
+		switch s_b in b {
+		case AABB:
+			return aabb_circle_intersect(s_b, s_a)
+		case Circle:
+			return circle_intersect(s_a, s_b)
+		}
 	}
 	panic("unhandled shape type in shapes_intersect")
 }
@@ -792,12 +798,7 @@ is_point_in_triangle :: proc(p, a, b, c: vec2) -> bool {
 get_bounding_box_for_moving_shape :: proc(moving_shape: MovingShape) -> AABB {
 	switch s in moving_shape.shape {
 	case AABB:
-		corners := [4]vec2 {
-			s.max,
-			s.min,
-			s.min + moving_shape.vel,
-			s.max + moving_shape.vel,
-		}
+		corners := [4]vec2{s.max, s.min, s.min + moving_shape.vel, s.max + moving_shape.vel}
 		overall_min := corners[0]
 		overall_max := corners[0]
 		#unroll for i in 1 ..< 4 {
