@@ -158,7 +158,7 @@ GameFrameData :: struct {
 	collisions:                 Collisions,
 }
 //long type names
-Collisions :: map[GameObjectHandle][dynamic]AABBCollision
+Collisions :: map[GameObjectHandle][dynamic]Collision
 Chunks :: map[ChunkId][dynamic]GameObjectHandle
 GameObjectSet :: map[GameObjectHandle]struct{}
 

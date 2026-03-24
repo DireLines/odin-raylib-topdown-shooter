@@ -56,7 +56,7 @@ CollisionInfo :: union {
 	ContinuousCollision,
 }
 
-AABBCollision :: struct {
+Collision :: struct {
 	a, b: union {
 		GameObjectHandle,
 		TilemapTileId,
@@ -214,7 +214,7 @@ physics_update :: proc(dt: f64) {
 			for collision in game.prev_frame.collisions[h] {
 				if collision.type != .stop {
 					if h not_in game.collisions {
-						game.collisions[h] = make([dynamic]AABBCollision)
+						game.collisions[h] = make([dynamic]Collision)
 					}
 					new_coll := collision
 					new_coll.type = .stop
@@ -257,7 +257,7 @@ physics_update :: proc(dt: f64) {
 					}
 				}
 				if h not_in game.collisions {
-					game.collisions[h] = make([dynamic]AABBCollision)
+					game.collisions[h] = make([dynamic]Collision)
 				}
 				new_coll := coll
 				new_coll.type = .start
@@ -362,22 +362,22 @@ physics_update :: proc(dt: f64) {
 						obj_b.position -= normal * depth * 0.5
 					}
 				}
-				new_coll_a := AABBCollision {
+				new_coll_a := Collision {
 					a = h,
 					b = b.handle,
 					info = DiscreteCollision{normal = normal, penetration_depth = depth},
 				}
-				new_coll_b := AABBCollision {
+				new_coll_b := Collision {
 					a = b.handle,
 					b = h,
 					info = DiscreteCollision{normal = -normal, penetration_depth = depth},
 				}
 				add_collision(h, new_coll_a)
 				add_collision(b.handle, new_coll_b)
-				add_collision :: proc(h: GameObjectHandle, collision: AABBCollision) {
+				add_collision :: proc(h: GameObjectHandle, collision: Collision) {
 					collision := collision
 					if h not_in game.collisions {
-						game.collisions[h] = make([dynamic]AABBCollision)
+						game.collisions[h] = make([dynamic]Collision)
 					}
 					was_colliding_before := false
 					if h in game.prev_frame.collisions {
@@ -416,7 +416,7 @@ physics_update :: proc(dt: f64) {
 	timer->time("detect collisions")
 }
 
-move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
+move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []Collision {
 	PhysicsUpdate :: struct {
 		accel, vel, pos_delta:                 vec2,
 		angular_accel, angular_vel, rot_delta: f64,
@@ -448,7 +448,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 		obj.angular_acceleration = 0
 		obj.inst_angular_velocity = 0
 	}
-	collisions := make([dynamic]AABBCollision, allocator = context.temp_allocator)
+	collisions := make([dynamic]Collision, allocator = context.temp_allocator)
 	obj := hm.get(&game.objects, obj_handle)
 	phys_update := kinematic_update(obj, dt)
 	pos_delta := phys_update.pos_delta
@@ -545,7 +545,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []AABBCollision {
 			pos_delta -= linalg.dot(pos_delta, wall_normal) * wall_normal
 			t_remaining -= t_min * t_remaining //we now try to keep moving for the rest of the time in this new direction
 			for tile_id in tiles_min {
-				collision := AABBCollision {
+				collision := Collision {
 					a = obj_handle,
 					b = tile_id,
 					info = ContinuousCollision {
