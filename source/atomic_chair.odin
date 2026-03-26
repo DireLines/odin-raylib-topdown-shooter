@@ -1101,6 +1101,7 @@ spawn_ui_stat_bar :: proc(
 			},
 			tags = {.CustomDraw},
 			variant = stat_bar_info,
+			parent_handle = parent,
 		},
 	)
 }

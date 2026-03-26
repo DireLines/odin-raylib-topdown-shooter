@@ -1,6 +1,5 @@
 package game
 
-import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:slice"
@@ -154,24 +153,30 @@ remake_chunks :: proc(dt: f64) {
 	clear_map(&game.chunks)
 	it := hm.make_iter(&game.objects)
 	for obj, h in hm.iter(&it) {
-		if .Collide not_in obj.tags {
-			continue
-		}
-		//make sure obj is in the right chunks and only those chunks
-		//since object hitbox is a contiguous shape,
-		//it's sufficient to get the rectangle of chunk ids between those which contain the top left and bottom right corners of the box
+		new_chunks: []ChunkId
+		if .Collide in obj.tags {
+			//make sure obj is in the right chunks and only those chunks
+			//since object hitbox is a contiguous shape,
+			//it's sufficient to get the rectangle of chunk ids between those which contain the top left and bottom right corners of the box
 
-		//typically:
-		//many objects per chunk, but only 1 or 2 chunks per object
-		//objects stay in same chunks as last frame
-		//optimize for this case
-		box := get_bounding_box_for_moving_shape(
-			get_moving_hitbox_for_object(obj, game.final_transforms[h.idx].transform, dt).moving_shape,
-		)
-		new_chunks := get_chunks_between(
-			get_containing_chunk(box.min),
-			get_containing_chunk(box.max),
-		)
+			//typically:
+			//many objects per chunk, but only 1 or 2 chunks per object
+			//objects stay in same chunks as last frame
+			//optimize for this case
+			box := get_bounding_box_for_moving_shape(
+				get_moving_hitbox_for_object(obj, game.final_transforms[h.idx].transform, dt).moving_shape,
+			)
+			new_chunks = get_chunks_between(
+				get_containing_chunk(box.min),
+				get_containing_chunk(box.max),
+			)
+		} else {
+			//non-colliding objects still need to be added to chunks for rendering
+			//since only chunks close to the camera need to be drawn
+			new_chunks = {
+				get_containing_chunk(mat_vec_mul(game.final_transforms[h.idx].transform, {0, 0})),
+			}
+		}
 		if len(new_chunks) > 1 {
 			game.objects_in_multiple_chunks[h] = {}
 		}

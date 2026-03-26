@@ -457,13 +457,6 @@ render :: proc() {
 		}
 		curr^ = s
 	}
-	player_pos: Maybe(vec2)
-	{
-		player := hm.get(&game.objects, game.player_handle)
-		if player != nil {
-			player_pos = player.position
-		}
-	}
 	for layer, layer_idx in game.render_layers {
 		for handle in layer {
 			if int(handle.idx) >= len(game.final_transforms) {

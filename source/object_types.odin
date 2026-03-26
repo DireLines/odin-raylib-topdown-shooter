@@ -9,6 +9,7 @@ GameObjectInst :: struct($T: typeid) {
 	using var: ^T,
 }
 object_inst_from_obj_ptr :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
+	//TODO error here when variant type is wrong
 	return GameObjectInst(T){o, &o.variant.(T)}
 }
 object_inst_from_handle :: proc(h: GameObjectHandle, $T: typeid) -> GameObjectInst(T) {
