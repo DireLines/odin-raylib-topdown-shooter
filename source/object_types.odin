@@ -8,17 +8,21 @@ GameObjectInst :: struct($T: typeid) {
 	using obj: ^GameObject,
 	using var: ^T,
 }
-object_inst_from_obj_ptr :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
+get_object_from_ptr_typed :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
 	//TODO error here when variant type is wrong
 	return GameObjectInst(T){o, &o.variant.(T)}
 }
-object_inst_from_handle :: proc(h: GameObjectHandle, $T: typeid) -> GameObjectInst(T) {
+get_object_from_handle_typed :: proc(h: GameObjectHandle, $T: typeid) -> GameObjectInst(T) {
 	o := hm.get(&game.objects, h)
-	return object_inst_from_obj_ptr(o, T)
+	return get_object_from_ptr_typed(o, T)
 }
-object_inst :: proc {
-	object_inst_from_handle,
-	object_inst_from_obj_ptr,
+get_object_from_handle_untyped :: proc(h: GameObjectHandle) -> ^GameObject {
+	return hm.get(&game.objects, h)
+}
+get_object :: proc {
+	get_object_from_handle_typed,
+	get_object_from_ptr_typed,
+	get_object_from_handle_untyped,
 }
 
 all_objects_with_tags :: proc(

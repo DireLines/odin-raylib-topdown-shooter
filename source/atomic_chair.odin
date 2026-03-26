@@ -150,6 +150,17 @@ default_ui_stat_bar :: proc() -> UIStatBar {
 		interp_tick_color = false,
 	}
 }
+get_health_bar_def :: proc(h: Health) -> UIStatBar {
+	bar := default_ui_stat_bar()
+	bar.disp_length = 100
+	bar.max_value = f64(h.max_health)
+	bar.num_ticks = h.max_health
+	bar.current_value = f64(h.health)
+	bar.incomplete_tick_display_mode = .Ceil
+	bar.interp_tick_color = true
+	bar.unfilled_color = set_alpha(rl.RED, 120)
+	return bar
+}
 DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
 	DefaultVariant,
@@ -402,7 +413,7 @@ handle_ui_sliders :: proc() {
 	it := hm.make_iter(&game.objects)
 	for slider, slider_handle in all_objects_with_variant(&it, UISlider) {
 		if game.clicked_ui_object != slider_handle {continue}
-		handle := object_inst(slider.handle_handle, UIButton)
+		handle := get_object(slider.handle_handle, UIButton)
 		frac := (mouse_screen_pos.x - slider.left_pos) / (slider.right_pos - slider.left_pos)
 		frac = clamp(frac, 0, 1)
 		val_target := slider.min_value + frac * (slider.max_value - slider.min_value)
@@ -441,10 +452,7 @@ main_menu_stop :: proc() {
 	}
 }
 
-
-atomic_chair_start :: proc() {
-	game.paused = false
-	//spawn player
+spawn_player :: proc() -> GameObjectHandle {
 	player_def := GameObject {
 		name = "player",
 		transform = {
@@ -467,32 +475,45 @@ atomic_chair_start :: proc() {
 		variant = Player{health = 6, max_health = 6, state = .Alive},
 	}
 	player_handle := spawn_object(player_def)
-	game.player_handle = player_handle
-	player := hm.get(&game.objects, player_handle)
-
-	score_label := GameObject {
-		name = "score label",
-		transform = {
-			position = {INGAME_UI_PADDING, INGAME_UI_PADDING},
-			scale = {1, 1},
-			pivot = {0, 0},
-		},
-		render_info = {
-			color = rl.WHITE,
-			render_layer = uint(RenderLayer.UI),
-			text_render_info = {
-				font_size = UI_SECONDARY_FONT_SIZE,
-				text_color = BEE_YELLOW,
-				text_alignment = .Left,
+	player := get_object(player_handle, Player)
+	{
+		score_label := GameObject {
+			name = "score label",
+			transform = {
+				position = {INGAME_UI_PADDING, INGAME_UI_PADDING},
+				scale = {1, 1},
+				pivot = {0, 0},
 			},
-		},
-		tags = {.Text},
-		parent_handle = game.screen_space_parent_handle,
+			render_info = {
+				color = rl.WHITE,
+				render_layer = uint(RenderLayer.UI),
+				text_render_info = {
+					font_size = UI_SECONDARY_FONT_SIZE,
+					text_color = BEE_YELLOW,
+					text_alignment = .Left,
+				},
+			},
+			tags = {.Text},
+			parent_handle = game.screen_space_parent_handle,
+		}
+		player.score_label_handle = spawn_object(score_label)
 	}
-	p := &player.variant.(Player)
-	p.score_label_handle = spawn_object(score_label)
+	{
+		health_bar_def := get_health_bar_def(player.health_info)
+		player.health_bar = spawn_ui_stat_bar(
+			"player health",
+			{WINDOW_WIDTH / 2, 0},
+			game.screen_space_parent_handle,
+			health_bar_def,
+		)
+	}
+	return player_handle
 }
 
+atomic_chair_start :: proc() {
+	game.paused = false
+	game.player_handle = spawn_player()
+}
 
 pause_menu_start :: proc() {
 	resume_button := spawn_button(
@@ -616,7 +637,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	//player movement
-	player := object_inst(game.player_handle, Player)
+	player := get_object(game.player_handle, Player)
 	// player.shader = .SolidColor
 	switch player.variant.(Player).state {
 	case .Alive:
@@ -660,7 +681,7 @@ atomic_chair_update :: proc(dt: f64) {
 			)
 		}
 		if rl.IsKeyPressed(.R) {
-			player_take_damage(object_inst(player, Player))
+			player_take_damage(get_object(player, Player))
 		}
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
@@ -746,7 +767,7 @@ atomic_chair_update :: proc(dt: f64) {
 							//take damage
 							apply_knockback(knockback_vec, player)
 							play_sound(get_sound("hit.wav"))
-							player_take_damage(object_inst(player, Player))
+							player_take_damage(get_object(player, Player))
 						case:
 							should_kill_bullet = true
 						}
@@ -799,10 +820,21 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	timer->time("move enemies")
 	{it := hm.make_iter(&game.objects)
-		for enemy, h in all_objects_with_variant(&it, Enemy) {
-			update_health_bar(&enemy.health_info)
+		update_health_bar :: proc(h: Health) {
+			bar := get_object(h.health_bar, UIStatBar)
+			bar.current_value = f64(h.health)
+			bar.max_value = f64(h.max_health)
+			bar.num_ticks = h.max_health
+			if bar.current_value == bar.max_value {
+				bar.tags -= {.CustomDraw}
+			} else {
+				bar.tags += {.CustomDraw}
+			}
 		}
-		// update_health_bar(&player.health_info)
+		for enemy, h in all_objects_with_variant(&it, Enemy) {
+			update_health_bar(enemy.health_info)
+		}
+		update_health_bar(player.health_info)
 	}
 	timer->time("update health bar displays")
 }
@@ -864,7 +896,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		linear_drag = ENEMY_LINEAR_DRAG,
 		render_layer = uint(RenderLayer.Enemy),
 		variant = Enemy {
-			health_info = {health = 5, max_health = 5},
+			health_info = {health = 3, max_health = 3},
 			spawn_point = pos,
 			state = .Alive_Inactive,
 			type = enemy_type,
@@ -872,7 +904,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		},
 	}
 	enemy_handle := spawn_object(enemy_obj)
-	enemy := object_inst(enemy_handle, Enemy)
+	enemy := get_object(enemy_handle, Enemy)
 	enemy.texture = atlas_textures[.Enemy_Face]
 	enemy.color = rl.WHITE
 	obj_name := "enemy"
@@ -883,14 +915,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 	}
 	enemy.name = fmt.aprint(obj_name)
 	{
-		health_bar_def := default_ui_stat_bar()
-		health_bar_def.disp_length = 100
-		health_bar_def.max_value = f64(enemy.max_health)
-		health_bar_def.num_ticks = enemy.max_health
-		health_bar_def.current_value = f64(enemy.health)
-		health_bar_def.incomplete_tick_display_mode = .Ceil
-		health_bar_def.interp_tick_color = true
-		health_bar_def.unfilled_color = set_alpha(rl.RED, 120)
+		health_bar_def := get_health_bar_def(enemy.health_info)
 		enemy.health_bar = spawn_ui_stat_bar(
 			fmt.aprint(obj_name, "health"),
 			{-64, -70},
@@ -984,7 +1009,7 @@ spawn_ui_slider :: proc(
 			max_scale = {handle_scale.x, handle_scale.y},
 			on_click_start = proc(info: ButtonCallbackInfo) {
 				slider_handle := info.button.associated_objects["slider"].(GameObjectHandle)
-				slider := object_inst(slider_handle, UISlider)
+				slider := get_object(slider_handle, UISlider)
 				game.clicked_ui_object = slider_handle
 			},
 		},
@@ -1108,7 +1133,7 @@ spawn_ui_stat_bar :: proc(
 	)
 }
 draw_ui_stat_bar :: proc(bar: ^GameObject) {
-	stat_bar := object_inst(bar, UIStatBar)
+	stat_bar := get_object(bar, UIStatBar)
 	//for each tick, draw a rectangle
 	frac_bar_filled :=
 		(stat_bar.current_value - stat_bar.min_value) / (stat_bar.max_value - stat_bar.min_value)
@@ -1191,16 +1216,4 @@ lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
 		result[i] = u8(math.lerp(f64(a[i]), f64(b[i]), t))
 	}
 	return result
-}
-
-update_health_bar :: proc(h: ^Health) {
-	bar := object_inst(h.health_bar, UIStatBar)
-	bar.current_value = f64(h.health)
-	bar.max_value = f64(h.max_health)
-	bar.num_ticks = h.max_health
-	if bar.current_value == bar.max_value {
-		bar.tags -= {.CustomDraw}
-	} else {
-		bar.tags += {.CustomDraw}
-	}
 }
