@@ -797,6 +797,13 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("move enemies")
+	{it := hm.make_iter(&game.objects)
+		for enemy, h in all_objects_with_variant(&it, Enemy) {
+			update_health_bar(&enemy.health_info)
+		}
+		// update_health_bar(&player.health_info)
+	}
+	timer->time("update health bar displays")
 }
 
 atomic_chair_stop :: proc() {
@@ -1164,4 +1171,11 @@ lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
 		result[i] = u8(math.lerp(f64(a[i]), f64(b[i]), t))
 	}
 	return result
+}
+
+update_health_bar :: proc(h: ^Health) {
+	bar := object_inst(h.health_bar, UIStatBar)
+	bar.current_value = f64(h.health)
+	bar.max_value = f64(h.max_health)
+	bar.num_ticks = h.max_health
 }
