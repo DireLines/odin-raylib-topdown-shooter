@@ -124,7 +124,7 @@ SliderCallbackInfo :: struct {
 //a bar displaying the current value of a stat
 UIStatBar :: struct {
 	min_value, current_value, max_value: f64,
-	disp_length:                         f64,
+	disp_length, disp_height:            f64,
 	filled_color, unfilled_color:        rl.Color,
 	num_ticks:                           int,
 
@@ -142,7 +142,8 @@ UIStatBar :: struct {
 }
 default_ui_stat_bar :: proc() -> UIStatBar {
 	return UIStatBar {
-		disp_length = 200,
+		disp_length = 100,
+		disp_height = 20,
 		filled_color = rl.GREEN,
 		unfilled_color = rl.GRAY,
 		num_ticks = 10,
@@ -152,7 +153,6 @@ default_ui_stat_bar :: proc() -> UIStatBar {
 }
 get_health_bar_def :: proc(h: Health) -> UIStatBar {
 	bar := default_ui_stat_bar()
-	bar.disp_length = 100
 	bar.max_value = f64(h.max_health)
 	bar.num_ticks = h.max_health
 	bar.current_value = f64(h.health)
@@ -500,9 +500,12 @@ spawn_player :: proc() -> GameObjectHandle {
 	}
 	{
 		health_bar_def := get_health_bar_def(player.health_info)
+		PLAYER_HEALTH_BAR_LENGTH :: 500
+		health_bar_def.disp_length = PLAYER_HEALTH_BAR_LENGTH
+		health_bar_def.disp_height = 30
 		player.health_bar = spawn_ui_stat_bar(
 			"player health",
-			{WINDOW_WIDTH / 2, 0},
+			{WINDOW_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10},
 			game.screen_space_parent_handle,
 			health_bar_def,
 		)
@@ -1139,10 +1142,14 @@ draw_ui_stat_bar :: proc(bar: ^GameObject) {
 		(stat_bar.current_value - stat_bar.min_value) / (stat_bar.max_value - stat_bar.min_value)
 	num_ticks_filled := int(math.floor(frac_bar_filled * f64(stat_bar.num_ticks)))
 	tick_width := stat_bar.disp_length / f64(stat_bar.num_ticks)
-	tick_height :: 20
-	transform := game.final_transforms[bar.handle.idx].transform
-	top_left := world_to_screen(mat_vec_mul(transform, {0, 0}), screen_conversion)
-	bottom_right := world_to_screen(mat_vec_mul(transform, {1, 1}), screen_conversion)
+	tick_height := stat_bar.disp_height
+	transform := game.final_transforms[bar.handle.idx]
+	top_left := mat_vec_mul(transform.transform, {0, 0})
+	bottom_right := mat_vec_mul(transform.transform, {1, 1})
+	if !transform.screen_space {
+		top_left = world_to_screen(top_left, screen_conversion)
+		bottom_right = world_to_screen(bottom_right, screen_conversion)
+	}
 	filled_color, unfilled_color := stat_bar.filled_color, stat_bar.unfilled_color
 	for i in 0 ..< stat_bar.num_ticks {
 		pos := vec2{top_left.x + f64(i) * tick_width, top_left.y}
