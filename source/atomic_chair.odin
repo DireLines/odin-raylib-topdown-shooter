@@ -883,19 +883,20 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 	}
 	enemy.name = fmt.aprint(obj_name)
 	{
-		stat_bar_info := default_ui_stat_bar()
-		stat_bar_info.max_value = f64(enemy.max_health)
-		stat_bar_info.num_ticks = enemy.max_health
-		stat_bar_info.current_value = f64(enemy.health)
-		stat_bar_info.incomplete_tick_display_mode = .Ceil
-		stat_bar_info.interp_tick_color = true
-		health_bar := spawn_ui_stat_bar(
+		health_bar_def := default_ui_stat_bar()
+		health_bar_def.disp_length = 100
+		health_bar_def.max_value = f64(enemy.max_health)
+		health_bar_def.num_ticks = enemy.max_health
+		health_bar_def.current_value = f64(enemy.health)
+		health_bar_def.incomplete_tick_display_mode = .Ceil
+		health_bar_def.interp_tick_color = true
+		health_bar_def.unfilled_color = set_alpha(rl.RED, 120)
+		enemy.health_bar = spawn_ui_stat_bar(
 			fmt.aprint(obj_name, "health"),
-			{0, 0},
+			{-64, -70},
 			enemy_handle,
-			stat_bar_info,
+			health_bar_def,
 		)
-		enemy.health_bar = health_bar
 	}
 	return enemy_handle
 }
@@ -1180,4 +1181,9 @@ update_health_bar :: proc(h: ^Health) {
 	bar.current_value = f64(h.health)
 	bar.max_value = f64(h.max_health)
 	bar.num_ticks = h.max_health
+	if bar.current_value == bar.max_value {
+		bar.tags -= {.CustomDraw}
+	} else {
+		bar.tags += {.CustomDraw}
+	}
 }
