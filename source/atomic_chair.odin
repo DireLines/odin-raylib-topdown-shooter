@@ -864,7 +864,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		linear_drag = ENEMY_LINEAR_DRAG,
 		render_layer = uint(RenderLayer.Enemy),
 		variant = Enemy {
-			health_info = {health = 3, max_health = 3},
+			health_info = {health = 5, max_health = 5},
 			spawn_point = pos,
 			state = .Alive_Inactive,
 			type = enemy_type,
@@ -1160,10 +1160,27 @@ draw_ui_stat_bar :: proc(bar: ^GameObject) {
 		rl.DrawRectangle(
 			i32(pos.x),
 			i32(pos.y),
-			i32(tick_disp_width) + 1, //handle seams
+			i32(tick_disp_width),
 			i32(tick_height * (bottom_right - top_left).y),
 			color,
 		)
+		//black lines between ticks to cover seams
+		rl.DrawRectangle(
+			i32(pos.x) - 1,
+			i32(pos.y),
+			3,
+			i32(tick_height * (bottom_right - top_left).y),
+			rl.BLACK,
+		)
+		if i == stat_bar.num_ticks - 1 {
+			rl.DrawRectangle(
+				i32(pos.x + tick_disp_width) - 1,
+				i32(pos.y),
+				3,
+				i32(tick_height * (bottom_right - top_left).y),
+				rl.BLACK,
+			)
+		}
 	}
 }
 
