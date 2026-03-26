@@ -792,6 +792,7 @@ atomic_chair_update :: proc(dt: f64) {
 			case .Alive_Active:
 			case .Dead:
 				hm.remove(&game.objects, h)
+				hm.remove(&game.objects, enemy.health_bar)
 				play_sound(get_sound("augh.wav"))
 			}
 		}
@@ -1114,8 +1115,8 @@ draw_ui_stat_bar :: proc(bar: ^GameObject) {
 	tick_width := stat_bar.disp_length / f64(stat_bar.num_ticks)
 	tick_height :: 20
 	transform := game.final_transforms[bar.handle.idx].transform
-	top_left := mat_vec_mul(transform, {0, 0})
-	bottom_right := mat_vec_mul(transform, {1, 1})
+	top_left := world_to_screen(mat_vec_mul(transform, {0, 0}), screen_conversion)
+	bottom_right := world_to_screen(mat_vec_mul(transform, {1, 1}), screen_conversion)
 	filled_color, unfilled_color := stat_bar.filled_color, stat_bar.unfilled_color
 	for i in 0 ..< stat_bar.num_ticks {
 		pos := vec2{top_left.x + f64(i) * tick_width, top_left.y}
