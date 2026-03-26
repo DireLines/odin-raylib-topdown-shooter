@@ -1,7 +1,6 @@
 #+feature dynamic-literals
 package game
 
-import "base:intrinsics"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
@@ -72,7 +71,11 @@ EnemyState :: enum {
 	Dead,
 }
 
-example_stat_bar: GameObjectHandle
+Health :: struct {
+	health, max_health: int,
+	health_bar:         GameObjectHandle,
+}
+
 //object variants
 //in contrast to tags, each object has exactly one variant
 //GameObject has a field called `variant` which is this GameObjectVariant union type
@@ -81,18 +84,18 @@ example_stat_bar: GameObjectHandle
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
 Player :: struct {
-	health:             int,
+	using health_info:  Health,
 	state:              AliveDeadState,
 	score:              int,
 	score_label_handle: GameObjectHandle,
 }
 Enemy :: struct {
-	health:         int,
-	spawn_point:    vec2,
-	state:          EnemyState,
-	type:           EnemyType,
-	pathfind_index: uint,
-	path:           TilePath,
+	using health_info: Health,
+	spawn_point:       vec2,
+	state:             EnemyState,
+	type:              EnemyType,
+	pathfind_index:    uint,
+	path:              TilePath,
 }
 Bullet :: struct {
 	last_hit_object: Maybe(GameObjectHandle),
@@ -461,7 +464,7 @@ atomic_chair_start :: proc() {
 		},
 		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
 		tags = {.Player, .Collide, .Sprite},
-		variant = Player{health = 6, state = .Alive},
+		variant = Player{health = 6, max_health = 6, state = .Alive},
 	}
 	player_handle := spawn_object(player_def)
 	game.player_handle = player_handle
@@ -488,18 +491,6 @@ atomic_chair_start :: proc() {
 	}
 	p := &player.variant.(Player)
 	p.score_label_handle = spawn_object(score_label)
-	stat_bar_info := default_ui_stat_bar()
-	stat_bar_info.max_value = 30
-	stat_bar_info.num_ticks = 20
-	stat_bar_info.current_value = 12
-	stat_bar_info.incomplete_tick_display_mode = .Ceil
-	stat_bar_info.interp_tick_color = true
-	example_stat_bar = spawn_ui_stat_bar(
-		"example",
-		{200, 200},
-		game.screen_space_parent_handle,
-		stat_bar_info,
-	)
 }
 
 
@@ -581,11 +572,6 @@ atomic_chair_update :: proc(dt: f64) {
 	timer := timer()
 	handle_ui_buttons()
 	handle_ui_sliders()
-	statbar := object_inst(example_stat_bar, UIStatBar)
-	statbar.current_value += 0.1
-	if statbar.current_value > statbar.max_value {
-		statbar.current_value -= statbar.max_value
-	}
 	if game.paused {
 		//TODO additional pause menu stuff?
 		return
@@ -862,7 +848,7 @@ EnemyType :: enum {
 	Basic,
 }
 spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
-	enemy := GameObject {
+	enemy_obj := GameObject {
 		name = "enemy",
 		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
 		tags = {.Enemy, .Collide, .Sprite},
@@ -870,14 +856,15 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		linear_drag = ENEMY_LINEAR_DRAG,
 		render_layer = uint(RenderLayer.Enemy),
 		variant = Enemy {
-			3,
-			pos,
-			.Alive_Inactive,
-			enemy_type,
-			rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
-			{},
+			health_info = {health = 3, max_health = 3},
+			spawn_point = pos,
+			state = .Alive_Inactive,
+			type = enemy_type,
+			pathfind_index = rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
 		},
 	}
+	enemy_handle := spawn_object(enemy_obj)
+	enemy := object_inst(enemy_handle, Enemy)
 	enemy.texture = atlas_textures[.Enemy_Face]
 	enemy.color = rl.WHITE
 	obj_name := "enemy"
@@ -887,9 +874,21 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 		obj_name = "basic enemy"
 	}
 	enemy.name = fmt.aprint(obj_name)
-	enemy_handle := spawn_object(enemy)
-	AVG_LETTER_WIDTH :: 20 * (1.25 / BASE_WINDOW_WIDTH)
-	AVG_LETTER_HEIGHT :: 30 * (1.25 / BASE_WINDOW_WIDTH)
+	{
+		stat_bar_info := default_ui_stat_bar()
+		stat_bar_info.max_value = f64(enemy.max_health)
+		stat_bar_info.num_ticks = enemy.max_health
+		stat_bar_info.current_value = f64(enemy.health)
+		stat_bar_info.incomplete_tick_display_mode = .Ceil
+		stat_bar_info.interp_tick_color = true
+		health_bar := spawn_ui_stat_bar(
+			fmt.aprint(obj_name, "health"),
+			{0, 0},
+			enemy_handle,
+			stat_bar_info,
+		)
+		enemy.health_bar = health_bar
+	}
 	return enemy_handle
 }
 

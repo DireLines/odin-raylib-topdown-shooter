@@ -394,7 +394,7 @@ recreate_final_transforms :: proc() {
 	resize(&game.final_transforms, len(game.objects.items)) //uses index-matching, so needs to be the same size as the actual items array, not number of objects
 
 	it := hm.make_iter(&game.objects)
-	for _, h in hm.iter(&it) {
+	for obj, h in hm.iter(&it) {
 		get_final_transform_cached(
 			h,
 			game.screen_space_parent_handle,
