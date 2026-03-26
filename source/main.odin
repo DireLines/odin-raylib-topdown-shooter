@@ -108,6 +108,7 @@ Game :: struct {
 	objects:                    GameObjects,
 	tilemap_chunks:             map[ChunkId]TilemapChunk,
 	loaded_chunks:              map[ChunkId]struct{},
+	room_chunks:                map[ChunkId]struct{},
 	render_layers:              [NUM_RENDER_LAYERS][dynamic]GameObjectHandle, // determines order in which objects are drawn to screen
 	textures:                   map[string]rl.Texture,
 	sounds:                     map[string]rl.Sound,

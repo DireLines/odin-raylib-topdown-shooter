@@ -88,6 +88,7 @@ Player :: struct {
 	state:              AliveDeadState,
 	score:              int,
 	score_label_handle: GameObjectHandle,
+	current_chunk:      ChunkId,
 }
 Enemy :: struct {
 	using health_info: Health,
@@ -602,23 +603,30 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	timer->time("handle buttons")
 	{
-		chunks_near_cam := get_chunks_near_cam(1)
-		for chunk in chunks_near_cam {
-			if chunk not_in game.loaded_chunks {
-				tilemap := get_tilemap_chunk(chunk)
-				min_corner, _ := get_tilemap_corners(chunk)
-				for i in 0 ..< CHUNK_WIDTH_TILES {
-					for j in 0 ..< CHUNK_HEIGHT_TILES {
-						if tilemap[i][j].spawn == .Enemy {
-							spawn_tile := min_corner + TilemapTileId{i, j}
-							for _ in 0 ..< 3 {
-								pos := random_point_in_tile(spawn_tile)
-								spawn_enemy(pos, .Basic)
+		player := get_object(game.player_handle, Player)
+		player_chunk := get_containing_chunk(player.position)
+		if player_chunk not_in game.room_chunks {
+			player.current_chunk = player_chunk
+			delete(game.room_chunks)
+			game.room_chunks = get_chunks_in_room(player.position)
+			for chunk in game.room_chunks {
+				if chunk not_in game.loaded_chunks {
+					tilemap := get_tilemap_chunk(chunk)
+					min_corner, _ := get_tilemap_corners(chunk)
+					for i in 0 ..< CHUNK_WIDTH_TILES {
+						for j in 0 ..< CHUNK_HEIGHT_TILES {
+							if tilemap[i][j].spawn == .Enemy {
+								spawn_tile := min_corner + TilemapTileId{i, j}
+								for _ in 0 ..< 3 {
+									pos := random_point_in_tile(spawn_tile)
+									spawn_enemy(pos, .Basic)
+								}
 							}
 						}
 					}
+					print("loaded chunk", chunk, "on frame", game.frame_counter)
+					game.loaded_chunks[chunk] = {}
 				}
-				game.loaded_chunks[chunk] = {}
 			}
 		}
 		//TODO load/unload chunks if cam chunks changed

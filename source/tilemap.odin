@@ -76,6 +76,45 @@ load_tilemap_chunk :: proc(id: ChunkId) -> (tilemap: TilemapChunk) {
 unload_tilemap_chunk :: proc(id: ChunkId) {
 	delete_key(&game.tilemap_chunks, id)
 }
+// Flood-fills the tilemap starting from the tile at player_pos, stopping at
+// Wall tiles, and returns the set of every chunk that contains a reached tile.
+// Uses the temp allocator internally; the returned map uses the default allocator.
+get_chunks_in_room :: proc(player_pos: vec2) -> map[ChunkId]struct{} {
+	start_tile := get_containing_tile(player_pos)
+
+	visited := make(map[TilemapTileId]struct{}, allocator = context.temp_allocator)
+	queue   := make([dynamic]TilemapTileId,     allocator = context.temp_allocator)
+	chunks  := make(map[ChunkId]struct{})
+
+	if get_tile(start_tile).type == .Wall {
+		return chunks
+	}
+
+	append(&queue, start_tile)
+	visited[start_tile] = {}
+
+	MAX_TILES :: 10000
+	head := 0
+	for head < len(queue) && head < MAX_TILES {
+		tile := queue[head]
+		head += 1
+
+		chunks[get_containing_chunk_for_tile(tile)] = {}
+
+		for neighbor in get_neighbors(tile) {
+			if neighbor in visited {
+				continue
+			}
+			visited[neighbor] = {}
+			if get_tile(neighbor).type != .Wall {
+				append(&queue, neighbor)
+			}
+		}
+	}
+
+	return chunks
+}
+
 get_tile :: proc(id: TilemapTileId) -> Tile {
 	//TODO cannot assume the tilemap generates quickly enough to hang on loading in any particular frame
 	// this should already be loaded by a chunk loader/unloader process
