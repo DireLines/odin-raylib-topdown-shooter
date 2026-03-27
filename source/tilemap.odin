@@ -79,9 +79,7 @@ unload_tilemap_chunk :: proc(id: ChunkId) {
 // Flood-fills the tilemap starting from the tile at player_pos, stopping at
 // Wall tiles, and returns the set of every chunk that contains a reached tile.
 // Uses the temp allocator internally; the returned map uses the default allocator.
-get_chunks_in_room :: proc(player_pos: vec2) -> map[ChunkId]struct{} {
-	start_tile := get_containing_tile(player_pos)
-
+get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 	visited := make(map[TilemapTileId]struct{}, allocator = context.temp_allocator)
 	queue   := make([dynamic]TilemapTileId,     allocator = context.temp_allocator)
 	chunks  := make(map[ChunkId]struct{})
