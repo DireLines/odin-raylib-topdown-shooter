@@ -91,9 +91,13 @@ get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 	append(&queue, start_tile)
 	visited[start_tile] = {}
 
-	MAX_TILES :: 10000
+	MAX_TILES :: 1000000
 	head := 0
-	for head < len(queue) && head < MAX_TILES {
+	for head < len(queue) {
+		if head >= MAX_TILES{
+			print("hit tile limit")
+			break
+		}
 		tile := queue[head]
 		head += 1
 
