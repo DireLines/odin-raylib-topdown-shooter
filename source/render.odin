@@ -388,7 +388,7 @@ draw_debug_line_now :: proc(world_start, world_end: vec2, thickness: f32, color:
 	)
 }
 
-recreate_final_transforms :: proc() {
+recreate_final_transforms :: proc(game: ^Game = game) {
 	//iterate over game objects to determine final pos/rot/scales to render for each one (resolve transform hierarchy stuff)
 	clear(&game.final_transforms)
 	resize(&game.final_transforms, len(game.objects.items)) //uses index-matching, so needs to be the same size as the actual items array, not number of objects

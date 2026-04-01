@@ -152,7 +152,7 @@ GameSave :: struct {
 
 // Applies a GameSave to a live Game.
 apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
-	reset_game(g)
+	// reset_game(g) // TODO stop this from segfaulting
 	// Objects
 	// Zero out the handle map and write objects directly at their saved indices
 	// so that all stored GameObjectHandles remain valid.
@@ -252,7 +252,32 @@ game_to_cbor :: proc(
 		objects                    = objects[:],
 		frame_buffer               = g.frame_buffer,
 	}
+	// Per-field size breakdown (uses temp allocator, freed at end of frame).
+	print_field_size :: proc(name: string, value: $T) {
+		d, e := cbor.marshal(value, allocator = context.temp_allocator)
+		if e == nil {
+			print(name, "->", len(d), "bytes")
+		} else {
+			print(name, "-> marshal error:", e)
+		}
+	}
+	print("--- GameSave CBOR size breakdown ---")
+	print_field_size("tilemap_chunks", save.tilemap_chunks)
+	print_field_size("loaded_chunks", save.loaded_chunks)
+	print_field_size("room_chunks", save.room_chunks)
+	print_field_size("frame_counter", save.frame_counter)
+	print_field_size("render_counter", save.render_counter)
+	print_field_size("screen_space_parent_handle", save.screen_space_parent_handle)
+	print_field_size("paused", save.paused)
+	print_field_size("quit", save.quit)
+	print_field_size("main_camera", save.main_camera)
+	print_field_size("game_specific_state", save.game_specific_state)
+	print_field_size("objects", save.objects)
+	print_field_size("frame_buffer", save.frame_buffer)
+	print("------------------------------------")
+
 	return cbor.marshal(save, allocator = allocator)
+
 }
 
 // Deserializes CBOR bytes and applies the result to g.
