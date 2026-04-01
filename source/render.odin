@@ -17,7 +17,7 @@ RenderInfo :: struct {
 	using text_render_info: TextRenderInfo,
 	render_layer:           uint,
 	using import_mode:      TextureImportMode,
-	draw:                   proc(obj: ^GameObject), //custom draw proc, not used unless .CustomDraw is on in object's tags
+	draw:                   proc(obj: ^GameObject) `cbor:"-"`, //custom draw proc, not used unless .CustomDraw is on in object's tags
 }
 
 TextureImportMode :: struct {
@@ -38,7 +38,7 @@ TextAlignment :: enum {
 
 //these are Maybes because the zero value is undesirable for all of them, need to know when to use a default
 TextRenderInfo :: struct {
-	font:           Maybe(rl.Font),
+	font:           Maybe(rl.Font) `cbor:"-"`,
 	text_color:     Maybe(rl.Color),
 	font_size:      Maybe(f32),
 	text_alignment: TextAlignment,

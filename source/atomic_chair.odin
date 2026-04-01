@@ -32,15 +32,16 @@ INGAME_UI_PADDING :: 20.0
 UI_MAIN_FONT_SIZE :: 72
 UI_SECONDARY_FONT_SIZE :: 42
 
+ChunkLoadingMode :: enum {
+	Room,
+	Proximity,
+}
 GameSpecificGlobalState :: struct {
 	clicked_ui_object:  Maybe(GameObjectHandle),
 	menu_state:         MenuState,
 	menu_container:     GameObjectHandle,
 	global_tilemap:     Tilemap,
-	chunk_loading_mode: enum {
-		Room,
-		Proximity,
-	},
+	chunk_loading_mode: ChunkLoadingMode,
 	//we load the map immediately, but need to remember
 	//where to spawn the player when the player object is spawned later
 	player_spawn_point: vec2,
@@ -108,15 +109,15 @@ Bullet :: struct {
 }
 UIButton :: struct {
 	min_scale, max_scale: vec2,
-	on_click_start:       proc(info: ButtonCallbackInfo), //triggered when mouse button down and hovering button
-	on_click:             proc(info: ButtonCallbackInfo), //triggered when mouse button up and hovering button - most of the time this is what you want
+	on_click_start:       proc(info: ButtonCallbackInfo) `cbor:"-"`, //triggered when mouse button down and hovering button
+	on_click:             proc(info: ButtonCallbackInfo) `cbor:"-"`, //triggered when mouse button up and hovering button - most of the time this is what you want
 }
 UISlider :: struct {
 	min_value, current_value, max_value, default_value: f64,
 	left_pos, right_pos:                                f64, //screen coords, for display
 	snap_increment:                                     f64, //0 = no snapping
 	show_percentage:                                    bool,
-	on_set_value:                                       proc(info: SliderCallbackInfo),
+	on_set_value:                                       proc(info: SliderCallbackInfo) `cbor:"-"`,
 	handle_handle:                                      GameObjectHandle,
 }
 SliderCallbackInfo :: struct {

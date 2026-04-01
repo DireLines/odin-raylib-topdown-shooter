@@ -110,13 +110,13 @@ Game :: struct {
 	loaded_chunks:              map[ChunkId]struct{},
 	room_chunks:                map[ChunkId]struct{},
 	render_layers:              [NUM_RENDER_LAYERS][dynamic]GameObjectHandle, // determines order in which objects are drawn to screen
-	textures:                   map[string]rl.Texture,
-	sounds:                     map[string]rl.Sound,
-	shaders:                    [ShaderName]rl.Shader,
-	fonts:                      map[FontName]rl.Font,
-	using frame:                ^GameFrameData,
-	prev_frame:                 ^GameFrameData,
-	frame_buffer:               rb.RingBuffer(GameFrameData, 2), //some logic will need to refer to previous frame's events, so use a swap buffer
+	textures:                   map[string]rl.Texture `cbor:"-"`,
+	sounds:                     map[string]rl.Sound `cbor:"-"`,
+	shaders:                    [ShaderName]rl.Shader `cbor:"-"`,
+	fonts:                      map[FontName]rl.Font `cbor:"-"`,
+	using frame:                ^GameFrameData `cbor:"-"`,
+	prev_frame:                 ^GameFrameData `cbor:"-"`,
+	frame_buffer:               rb.RingBuffer(GameFrameData, 2) `cbor:"-"`, //some logic will need to refer to previous frame's events, so use a swap buffer
 	frame_counter:              u64, //simulated frames
 	render_counter:             u64, // frames including renders while game is paused inside of menus and such
 	screen_space_parent_handle: GameObjectHandle, //indicates that an object whose parent handle is this should be drawn in screen space rather than global coords
@@ -127,13 +127,15 @@ Game :: struct {
 Tags :: bit_set[ObjectTag]
 SpatialPartitionId :: distinct [2]int
 
+GameObjectOrList :: union {
+	GameObjectHandle,
+	[dynamic]GameObjectHandle,
+}
+
 GameObject :: struct {
 	handle:                    GameObjectHandle, //needed for handle map
 	parent_handle:             Maybe(GameObjectHandle),
-	associated_objects:        map[string]union {
-		GameObjectHandle,
-		[dynamic]GameObjectHandle,
-	},
+	associated_objects:        map[string]GameObjectOrList,
 	name:                      string,
 	using transform:           Transform,
 	using physics:             PhysicsInfo,
@@ -143,7 +145,7 @@ GameObject :: struct {
 	static:                    bool, //this object promises not to change its local or global transform, allowing some optimizations
 	tags:                      Tags,
 	variant:                   GameObjectVariant,
-	_variant_type:             typeid, //internal use for speeding up runtime typechecks
+	_variant_type:             typeid `cbor:"-"`, //internal use for speeding up runtime typechecks
 	using game_specific_stuff: GameSpecificProps,
 }
 
@@ -164,7 +166,7 @@ Chunks :: map[ChunkId][dynamic]GameObjectHandle
 GameObjectSet :: map[GameObjectHandle]struct{}
 
 //TODO(perf) investigate a #soa version of handle_map
-MAX_OBJECTS :: 1 << 17
+MAX_OBJECTS :: 1 << 10
 GameObjectHandle :: distinct hm.Handle
 GameObjects :: hm.HandleMap(GameObject, GameObjectHandle, MAX_OBJECTS)
 GameObjectsIterator :: hm.HandleMap_Iterator(GameObject, GameObjectHandle, MAX_OBJECTS)
