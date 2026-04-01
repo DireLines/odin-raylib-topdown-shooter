@@ -534,10 +534,10 @@ render :: proc() {
 		sum: f64 = 0
 		num: int = 0
 		for &n in measured_frame_times.items {
-			if (n^ == 0) {
+			if (n == 0) {
 				continue
 			}
-			sum += n^
+			sum += n
 			num += 1
 		}
 		smoothed_frame_time := sum / f64(num)
@@ -563,14 +563,14 @@ render :: proc() {
 			return (curr_frame / FRAME_BUCKET_SIZE) - (idx / FRAME_BUCKET_SIZE)
 		}
 		for &n, i in measured_frame_times.items {
-			if (n^ == 0) {
+			if (n == 0) {
 				continue
 			}
 			curr_frame := measured_frame_times.idx
 			x := frame_buckets_in_the_past(int(curr_frame), i)
 			rl.DrawRectangle(
 				10 + 5 * c.int(x),
-				c.int(200 * n^ / millis_budget) - 1,
+				c.int(200 * n / millis_budget) - 1,
 				5,
 				3,
 				rl.Color{255, 129, 61, 100},

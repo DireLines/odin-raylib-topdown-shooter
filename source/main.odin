@@ -105,18 +105,18 @@ rl_rect_to_rect :: proc(r: rl.Rectangle) -> Rect {
 
 
 Game :: struct {
-	objects:                    GameObjects,
+	objects:                    GameObjects `cbor:"-"`,
 	tilemap_chunks:             map[ChunkId]TilemapChunk,
 	loaded_chunks:              map[ChunkId]struct{},
 	room_chunks:                map[ChunkId]struct{},
-	render_layers:              [NUM_RENDER_LAYERS][dynamic]GameObjectHandle, // determines order in which objects are drawn to screen
+	render_layers:              [NUM_RENDER_LAYERS][dynamic]GameObjectHandle `cbor:"-"`, // determines order in which objects are drawn to screen; rebuilt on load
 	textures:                   map[string]rl.Texture `cbor:"-"`,
 	sounds:                     map[string]rl.Sound `cbor:"-"`,
 	shaders:                    [ShaderName]rl.Shader `cbor:"-"`,
 	fonts:                      map[FontName]rl.Font `cbor:"-"`,
 	using frame:                ^GameFrameData `cbor:"-"`,
 	prev_frame:                 ^GameFrameData `cbor:"-"`,
-	frame_buffer:               rb.RingBuffer(GameFrameData, 2) `cbor:"-"`, //some logic will need to refer to previous frame's events, so use a swap buffer
+	frame_buffer:               rb.RingBuffer(GameFrameData, 2), //some logic will need to refer to previous frame's events, so use a swap buffer
 	frame_counter:              u64, //simulated frames
 	render_counter:             u64, // frames including renders while game is paused inside of menus and such
 	screen_space_parent_handle: GameObjectHandle, //indicates that an object whose parent handle is this should be drawn in screen space rather than global coords

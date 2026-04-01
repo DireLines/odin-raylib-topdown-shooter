@@ -1,9 +1,11 @@
 package game
 import "core:encoding/cbor"
 import "core:os"
+import "core:reflect"
 import "core:slice"
 import "core:strings"
 import hm "handle_map_static"
+import rb "ring_buffer"
 import rl "vendor:raylib"
 //loading/saving assets
 
@@ -129,28 +131,42 @@ delete_atlased_font :: proc(font: rl.Font) {
 //     2. Store a string key alongside each proc and use a lookup table at runtime.
 //     3. Don't save UI objects — rebuild menus from scratch on load.
 
+// GameSave holds only the serializable fields of Game (no giant fixed arrays or GPU handles),
+// plus the compact object list and frame buffer needed to fully restore game state.
 GameSave :: struct {
-	g:            Game,
-	objects:      []GameObject,
-	frame_buffer: []GameFrameData,
+	// Game scalar / map fields (everything in Game not tagged cbor:"-")
+	tilemap_chunks:             map[ChunkId]TilemapChunk,
+	loaded_chunks:              map[ChunkId]struct{},
+	room_chunks:                map[ChunkId]struct{},
+	frame_counter:              u64,
+	render_counter:             u64,
+	screen_space_parent_handle: GameObjectHandle,
+	paused:                     bool,
+	quit:                       bool,
+	main_camera:                Transform,
+	using game_specific_state:  GameSpecificGlobalState,
+	// compact object list (valid entries only) and frame buffer
+	objects:                    []GameObject,
+	frame_buffer:               rb.RingBuffer(GameFrameData, 2),
 }
 
 // Applies a GameSave to a live Game.
 //
 // NOTE: Call this on a freshly reset game (e.g. right after reset_game()) to avoid
 // leaking the dynamic allocations inside existing GameObjects (associated_objects maps, etc.).
-// NOTE: global_tilemap ownership is transferred from save to g — do not free save after calling this.
-apply_save_to_game :: proc(g: ^Game, save: ^Game) {
+// NOTE: tilemap_chunks ownership is transferred from save to g — do not free save after calling this.
+apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	// --- Objects ---
 	// Zero out the handle map and write objects directly at their saved indices
 	// so that all stored GameObjectHandles remain valid.
 	hm.clear(&g.objects)
 	max_idx: u32 = 0
-	for obj in save.objects.items {
+	for obj in save.objects {
 		idx := obj.handle.idx
 		if idx > 0 && int(idx) < len(g.objects.items) {
 			g.objects.items[idx] = obj
-			if idx > max_idx do max_idx = idx
+			g.objects.items[idx]._variant_type = reflect.union_variant_typeid(obj.variant)
+			max_idx = max(max_idx, idx)
 		}
 	}
 	g.objects.num_items = max_idx + 1
@@ -179,6 +195,10 @@ apply_save_to_game :: proc(g: ^Game, save: ^Game) {
 		}
 	}
 
+	// --- Frame buffer ---
+	g.frame = rb.get_current(&g.frame_buffer)
+	g.prev_frame = rb.get_prev(&g.frame_buffer)
+
 	// --- Tilemap / chunk sets ---
 	delete(g.tilemap_chunks)
 	g.tilemap_chunks = save.tilemap_chunks
@@ -197,15 +217,11 @@ apply_save_to_game :: proc(g: ^Game, save: ^Game) {
 
 	// --- Scalar / simple fields ---
 	g.frame_counter = save.frame_counter
+	g.render_counter = save.render_counter
 	g.screen_space_parent_handle = save.screen_space_parent_handle
 	g.paused = save.paused
 	g.main_camera = save.main_camera
-	g.menu_state = save.menu_state
-	g.menu_container = save.menu_container
-	g.global_tilemap = save.global_tilemap
-	g.chunk_loading_mode = save.chunk_loading_mode
-	g.player_spawn_point = save.player_spawn_point
-	g.player_handle = save.player_handle
+	g.game_specific_state = save.game_specific_state
 }
 
 // Serializes the game to CBOR bytes. Caller owns the returned slice.
@@ -216,15 +232,37 @@ game_to_cbor :: proc(
 	data: []byte,
 	err: cbor.Marshal_Error,
 ) {
-	//TODO g.objects is a giant statically allocated block, so need to gather that into its own list of just the objects that actually exist
-	return cbor.marshal(g^, allocator = allocator)
+	// Collect only the live objects (skip empty slots in the fixed handle map array).
+	objects := make([dynamic]GameObject, context.temp_allocator)
+	{
+		it := hm.make_iter(&g.objects)
+		for obj in hm.iter(&it) {
+			append(&objects, obj^)
+		}
+	}
+
+	save := GameSave {
+		tilemap_chunks             = g.tilemap_chunks,
+		loaded_chunks              = g.loaded_chunks,
+		room_chunks                = g.room_chunks,
+		frame_counter              = g.frame_counter,
+		render_counter             = g.render_counter,
+		screen_space_parent_handle = g.screen_space_parent_handle,
+		paused                     = g.paused,
+		quit                       = g.quit,
+		main_camera                = g.main_camera,
+		game_specific_state        = g.game_specific_state,
+		objects                    = objects[:],
+		frame_buffer               = g.frame_buffer,
+	}
+	return cbor.marshal(save, allocator = allocator)
 }
 
 // Deserializes CBOR bytes and applies the result to g.
 // See apply_save_to_game for caveats about object cleanup before calling.
 game_from_cbor :: proc(g: ^Game, data: []byte) -> bool {
-	//TODO objects is serialized as a list, so need to populate g.objects based on that
-	save := new(Game)
+	save := new(GameSave)
+	defer free(save)
 	err := cbor.unmarshal(data, save)
 	if err != nil {
 		print("game_from_cbor: unmarshal error:", err)
