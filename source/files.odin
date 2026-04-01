@@ -125,11 +125,11 @@ delete_atlased_font :: proc(font: rl.Font) {
 //
 // Serializes/deserializes game state to/from CBOR.
 //
-// FUNCTION POINTER OPTIONS:
-//   The four proc fields above cannot be serialized. They will be nil after load. Options:
-//     1. Re-assign after load: iterate objects and re-attach the correct proc by variant/name.
-//     2. Store a string key alongside each proc and use a lookup table at runtime.
-//     3. Don't save UI objects — rebuild menus from scratch on load.
+// TODO RESTORE FUNCTION POINTERS
+// proc fields cannot be serialized. They will be nil after load. Options:
+//    1. Re-assign after load: iterate objects and re-attach the correct proc by variant/name.
+//    2. Store a string key alongside each proc and use a lookup table at runtime.
+//    3. Don't save UI objects — rebuild menus from scratch on load.
 
 // GameSave holds only the serializable fields of Game (no giant fixed arrays or GPU handles),
 // plus the compact object list and frame buffer needed to fully restore game state.
@@ -156,7 +156,7 @@ GameSave :: struct {
 // leaking the dynamic allocations inside existing GameObjects (associated_objects maps, etc.).
 // NOTE: tilemap_chunks ownership is transferred from save to g — do not free save after calling this.
 apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
-	// --- Objects ---
+	// Objects
 	// Zero out the handle map and write objects directly at their saved indices
 	// so that all stored GameObjectHandles remain valid.
 	hm.clear(&g.objects)
@@ -195,11 +195,11 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 		}
 	}
 
-	// --- Frame buffer ---
+	// Frame buffer
 	g.frame = rb.get_current(&g.frame_buffer)
 	g.prev_frame = rb.get_prev(&g.frame_buffer)
 
-	// --- Tilemap / chunk sets ---
+	// Tilemap / chunk sets
 	delete(g.tilemap_chunks)
 	g.tilemap_chunks = save.tilemap_chunks
 
@@ -215,7 +215,7 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 		g.room_chunks[id] = {}
 	}
 
-	// --- Scalar / simple fields ---
+	// Scalar / simple fields
 	g.frame_counter = save.frame_counter
 	g.render_counter = save.render_counter
 	g.screen_space_parent_handle = save.screen_space_parent_handle

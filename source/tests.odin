@@ -221,7 +221,7 @@ test_save_load :: proc(t: ^testing.T) {
 		return g2, true
 	}
 
-	// --- Scalar game-state fields ---
+	// Scalar game-state fields
 	{
 		g1 := new(Game); defer free(g1)
 		g1.frame_counter = 1234
@@ -255,7 +255,7 @@ test_save_load :: proc(t: ^testing.T) {
 		)
 	}
 
-	// --- Player variant, AABB hitbox, bit_set tags, parent handle ---
+	// Player variant, AABB hitbox, bit_set tags, parent handle
 	{
 		g1 := new(Game); defer free(g1)
 		child_obj := GameObject {
@@ -293,7 +293,7 @@ test_save_load :: proc(t: ^testing.T) {
 		testing.expect(t, p.score == 999, "player: score")
 	}
 
-	// --- Enemy variant, Circle hitbox ---
+	// Enemy variant, Circle hitbox
 	{
 		g1 := new(Game); defer free(g1)
 		h, _ := hm.add(
@@ -327,7 +327,7 @@ test_save_load :: proc(t: ^testing.T) {
 		testing.expect(t, e.type == .Basic, "enemy: type")
 	}
 
-	// --- Multiple objects: gaps in handle map are preserved ---
+	// Multiple objects: gaps in handle map are preserved
 	{
 		g1 := new(Game); defer free(g1)
 		h1, _ := hm.add(&g1.objects, GameObject{variant = DefaultVariant{}})
@@ -358,7 +358,7 @@ test_save_load :: proc(t: ^testing.T) {
 		testing.expect(t, bar.max_value == 10, "gaps: bar max_value")
 	}
 
-	// --- Tilemap chunks and loaded/room chunk sets ---
+	// Tilemap chunks and loaded/room chunk sets
 	{
 		g1 := new(Game); defer free(g1)
 		g1.tilemap_chunks = make(map[ChunkId]TilemapChunk)
