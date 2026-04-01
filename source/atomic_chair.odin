@@ -570,13 +570,13 @@ pause_menu_stop :: proc() {
 }
 
 //game-specific teardown / reset logic
-reset_game :: proc() {
-	hm.clear(&game.objects)
-	clear(&game.chunks)
-	clear(&game.loaded_chunks)
+reset_game :: proc(g: ^Game = game) {
+	hm.clear(&g.objects)
+	clear(&g.chunks)
+	clear(&g.loaded_chunks)
 	recreate_final_transforms()
-	game.frame_counter = 0
-	game.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"})
+	g.frame_counter = 0
+	g.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"})
 }
 
 //game-specific update logic (run once per frame)

@@ -151,11 +151,8 @@ GameSave :: struct {
 }
 
 // Applies a GameSave to a live Game.
-//
-// NOTE: Call this on a freshly reset game (e.g. right after reset_game()) to avoid
-// leaking the dynamic allocations inside existing GameObjects (associated_objects maps, etc.).
-// NOTE: tilemap_chunks ownership is transferred from save to g — do not free save after calling this.
 apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
+	reset_game(g)
 	// Objects
 	// Zero out the handle map and write objects directly at their saved indices
 	// so that all stored GameObjectHandles remain valid.
@@ -273,7 +270,7 @@ game_from_cbor :: proc(g: ^Game, data: []byte) -> bool {
 }
 
 // Serializes and writes the game state to a file at path.
-save_game :: proc(g: ^Game, path: string) -> bool {
+save_game :: proc(g: ^Game, path: string = "") -> bool {
 	data, merr := game_to_cbor(g)
 	if merr != nil {
 		print("save_game: marshal error:", merr)
