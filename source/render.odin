@@ -389,11 +389,15 @@ draw_debug_line_now :: proc(world_start, world_end: vec2, thickness: f32, color:
 }
 
 recreate_final_transforms :: proc(game: ^Game = game) {
+
 	//iterate over game objects to determine final pos/rot/scales to render for each one (resolve transform hierarchy stuff)
 	clear(&game.final_transforms)
+
 	resize(&game.final_transforms, len(game.objects.items)) //uses index-matching, so needs to be the same size as the actual items array, not number of objects
 
+
 	it := hm.make_iter(&game.objects)
+
 	for obj, h in hm.iter(&it) {
 		get_final_transform_cached(
 			h,
@@ -402,10 +406,12 @@ recreate_final_transforms :: proc(game: ^Game = game) {
 			game.final_transforms[:],
 		)
 	}
+
 	it = hm.make_iter(&game.objects)
 	for obj, h in hm.iter(&it) {
 		game.final_transforms[h.idx].transform *= unpivot(obj.transform)
 	}
+
 }
 objects_to_draw: map[GameObjectHandle]struct{}
 tile_render_layers_used: map[uint]struct{}

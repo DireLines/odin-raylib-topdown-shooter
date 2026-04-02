@@ -14,3 +14,5 @@ earshot.exe
 odin-raylib
 
 palette_tool
+
+*.cbor

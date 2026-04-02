@@ -190,30 +190,21 @@ game_init_window :: proc() {
 	}
 }
 
+
 @(export)
 game_init :: proc() {
 	game = new(Game)
-	//load shaders
-	solid_color_shader := rl.LoadShaderFromMemory(nil, cstring(SOLID_COLOR_SHADER))
-	shade_uniform_loc := rl.GetShaderLocation(solid_color_shader, "shade")
-	rl.SetShaderValue(solid_color_shader, shade_uniform_loc, &[3]f32{1, 1, 1}, .VEC3) //solid white
-	game.shaders[.SolidColor] = solid_color_shader
-	game.shaders[.PixelFilter] = rl.LoadShaderFromMemory(nil, cstring(PIXEL_FILTER_SHADER))
+	game_init_mem(game)
+	game_init_raylib(game)
+}
 
+game_init_mem :: proc(game: ^Game) {
 	rb.init(&game.frame_buffer)
 	game.frame = rb.get_current(&game.frame_buffer)
 	game.prev_frame = rb.get_prev(&game.frame_buffer)
 
 	rb.init(&measured_frame_times)
 
-	// Load atlas from ATLAS_DATA, which was stored in the executable at compile-time.
-	atlas_image := rl.LoadImageFromMemory(".png", raw_data(ATLAS_DATA), i32(len(ATLAS_DATA)))
-	atlas = rl.LoadTextureFromImage(atlas_image)
-	rl.UnloadImage(atlas_image)
-	// Set the shape's drawing texture, this makes rl.DrawRectangleRec etc use the atlas
-	rl.SetShapesTexture(atlas, rect_to_rl_rect(SHAPES_TEXTURE_RECT))
-
-	global_default_font = get_font(MAIN_FONT)
 	reset_game()
 
 	//init some globals
@@ -233,6 +224,24 @@ game_init :: proc() {
 
 	game_start()
 }
+game_init_raylib :: proc(game: ^Game) {
+	//load shaders
+	solid_color_shader := rl.LoadShaderFromMemory(nil, cstring(SOLID_COLOR_SHADER))
+	shade_uniform_loc := rl.GetShaderLocation(solid_color_shader, "shade")
+	rl.SetShaderValue(solid_color_shader, shade_uniform_loc, &[3]f32{1, 1, 1}, .VEC3) //solid white
+	game.shaders[.SolidColor] = solid_color_shader
+	game.shaders[.PixelFilter] = rl.LoadShaderFromMemory(nil, cstring(PIXEL_FILTER_SHADER))
+
+	// Load atlas from ATLAS_DATA, which was stored in the executable at compile-time.
+	atlas_image := rl.LoadImageFromMemory(".png", raw_data(ATLAS_DATA), i32(len(ATLAS_DATA)))
+	atlas = rl.LoadTextureFromImage(atlas_image)
+	rl.UnloadImage(atlas_image)
+	// Set the shape's drawing texture, this makes rl.DrawRectangleRec etc use the atlas
+	rl.SetShapesTexture(atlas, rect_to_rl_rect(SHAPES_TEXTURE_RECT))
+
+	global_default_font = get_font(MAIN_FONT)
+}
+
 @(export)
 game_shutdown :: proc() {
 	// hm.delete(&game.objects)

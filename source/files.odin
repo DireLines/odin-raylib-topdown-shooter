@@ -152,32 +152,14 @@ GameSave :: struct {
 
 // Applies a GameSave to a live Game.
 apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
-	// reset_game(g) // TODO stop this from segfaulting
+	// Frame buffer
+	g.frame = rb.get_current(&save.frame_buffer)
+	g.prev_frame = rb.get_prev(&save.frame_buffer)
 	// Objects
 	// Zero out the handle map and write objects directly at their saved indices
 	// so that all stored GameObjectHandles remain valid.
 	hm.clear(&g.objects)
-	max_idx: u32 = 0
-	for obj in save.objects {
-		idx := obj.handle.idx
-		if idx > 0 && int(idx) < len(g.objects.items) {
-			g.objects.items[idx] = obj
-			g.objects.items[idx]._variant_type = reflect.union_variant_typeid(obj.variant)
-			max_idx = max(max_idx, idx)
-		}
-	}
-	g.objects.num_items = max_idx + 1
-
-	// Rebuild unused-slot linked list for any gaps in the index range.
-	g.objects.next_unused = 0
-	g.objects.num_unused = 0
-	for i := u32(1); i < g.objects.num_items; i += 1 {
-		if g.objects.items[i].handle.idx == 0 {
-			g.objects.unused_items[i] = g.objects.next_unused
-			g.objects.next_unused = i
-			g.objects.num_unused += 1
-		}
-	}
+	hm.refill_from_list(&g.objects, save.objects)
 
 	// Rebuild render layers from the restored objects.
 	for &layer in g.render_layers {
@@ -192,9 +174,6 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 		}
 	}
 
-	// Frame buffer
-	g.frame = rb.get_current(&g.frame_buffer)
-	g.prev_frame = rb.get_prev(&g.frame_buffer)
 
 	// Tilemap / chunk sets
 	delete(g.tilemap_chunks)

@@ -327,3 +327,41 @@ iter :: proc(it: ^HandleMap_Iterator($T, $HT, $Max)) -> (val: ^T, h: HT, has_nex
 skip :: proc(e: $T) -> bool {
 	return e.handle.idx == 0
 }
+
+//TODO this is untested because we currently need handle_map_static, make unit tests for handle maps
+refill_from_list :: proc(m: ^HandleMap($T, $HT, $N), list: []T) {
+	max_idx: u32 = 0
+	for elem in list {
+		idx := elem.handle.idx
+		if idx > 0 {
+			max_idx = max(max_idx, idx)
+		}
+	}
+	m.num_items = max_idx + 1
+	resize_dynamic_array(&m.items, m.num_items)
+	for elem in list {
+		idx := elem.handle.idx
+		if idx > 0 {
+			m.items[idx] = elem
+		}
+	}
+	max_idx: u32 = 0
+	for elem in list {
+		idx := elem.handle.idx
+		if idx > 0 && int(idx) < len(m.items) {
+			m.items[idx] = elem
+			max_idx = max(max_idx, idx)
+		}
+	}
+
+	// Rebuild unused-slot linked list for any gaps in the index range.
+	m.next_unused = 0
+	m.num_unused = 0
+	for i := u32(1); i < m.num_items; i += 1 {
+		if m.items[i].handle.idx == 0 {
+			m.unused_items[i] = m.next_unused
+			m.next_unused = i
+			m.num_unused += 1
+		}
+	}
+}
