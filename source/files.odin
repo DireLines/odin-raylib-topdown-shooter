@@ -203,6 +203,7 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	g.paused = save.paused
 	g.main_camera = save.main_camera
 	g.game_specific_state = save.game_specific_state
+	replace_function_pointers_on_load(g)
 }
 
 // Serializes the game to CBOR bytes. Caller owns the returned slice.
@@ -280,6 +281,7 @@ game_from_cbor :: proc(g: ^Game, data: []byte) -> bool {
 
 // Serializes and writes the game state to a file at path.
 save_game :: proc(g: ^Game, path: string = "") -> bool {
+	print("saving", path)
 	data, merr := game_to_cbor(g)
 	if merr != nil {
 		print("save_game: marshal error:", merr)
@@ -297,6 +299,7 @@ save_game :: proc(g: ^Game, path: string = "") -> bool {
 // Reads a file at path and restores game state from it.
 // See apply_save_to_game for caveats about object cleanup before calling.
 load_game :: proc(g: ^Game, path: string) -> bool {
+	print("loading", path)
 	data, rerr := os.read_entire_file(path, context.allocator)
 	if rerr != nil {
 		print("load_game: failed to read file:", path, rerr)

@@ -198,7 +198,6 @@ game_init :: proc() {
 	game = new(Game)
 	game_init_mem(game)
 	when LOAD_PATH != "" {
-		print("loading", LOAD_PATH)
 		load_game(game, LOAD_PATH)
 	}
 	game_init_raylib(game)
@@ -291,7 +290,7 @@ game_step :: proc(game: ^Game = game) {
 	total_timer := timer()
 	timer := timer()
 	if rl.IsKeyPressed(.I) {
-		save_game(game, "save.cbor")
+		save_game(game, "save2.cbor")
 		timer->time("save game")
 	}
 	dt := f64(rl.GetFrameTime())

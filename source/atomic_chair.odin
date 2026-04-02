@@ -1261,3 +1261,12 @@ lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
 	}
 	return result
 }
+
+//unfortunately save/load destroys function pointers, we need to replace the ones we care about
+//which is game-specific logic, so it must go here
+replace_function_pointers_on_load :: proc(game: ^Game = game) {
+	it := hm.make_iter(&game.objects)
+	for obj, h in all_objects_with_variant(&it, UIStatBar) {
+		obj.draw = draw_ui_stat_bar
+	}
+}
