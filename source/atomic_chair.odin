@@ -522,7 +522,10 @@ spawn_player :: proc() -> GameObjectHandle {
 atomic_chair_start :: proc() {
 	game.paused = false
 	game.chunk_loading_mode = .Room
-	game.player_handle = spawn_player()
+	if game.player_handle.idx == 0 {
+		//not loading from a file with a player in it
+		game.player_handle = spawn_player()
+	}
 }
 
 pause_menu_start :: proc() {

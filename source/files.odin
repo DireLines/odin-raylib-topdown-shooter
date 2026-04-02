@@ -134,10 +134,13 @@ delete_atlased_font :: proc(font: rl.Font) {
 // GameSave holds only the serializable fields of Game (no giant fixed arrays or GPU handles),
 // plus the compact object list and frame buffer needed to fully restore game state.
 GameSave :: struct {
+	// compact object list (valid entries only) and frame buffer
+	objects:                    []GameObject,
 	// Game scalar / map fields (everything in Game not tagged cbor:"-")
 	tilemap_chunks:             map[ChunkId]TilemapChunk,
 	loaded_chunks:              map[ChunkId]struct{},
 	room_chunks:                map[ChunkId]struct{},
+	frame_buffer:               rb.RingBuffer(GameFrameData, 2),
 	frame_counter:              u64,
 	render_counter:             u64,
 	screen_space_parent_handle: GameObjectHandle,
@@ -145,21 +148,23 @@ GameSave :: struct {
 	quit:                       bool,
 	main_camera:                Transform,
 	using game_specific_state:  GameSpecificGlobalState,
-	// compact object list (valid entries only) and frame buffer
-	objects:                    []GameObject,
-	frame_buffer:               rb.RingBuffer(GameFrameData, 2),
 }
 
 // Applies a GameSave to a live Game.
 apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	// Frame buffer
-	g.frame = rb.get_current(&save.frame_buffer)
-	g.prev_frame = rb.get_prev(&save.frame_buffer)
+	g.frame_buffer = save.frame_buffer
+	g.frame = rb.get_current(&g.frame_buffer)
+	g.prev_frame = rb.get_prev(&g.frame_buffer)
 	// Objects
 	// Zero out the handle map and write objects directly at their saved indices
 	// so that all stored GameObjectHandles remain valid.
 	hm.clear(&g.objects)
 	hm.refill_from_list(&g.objects, save.objects)
+	it := hm.make_iter(&g.objects)
+	for obj, h in hm.iter(&it) {
+		obj._variant_type = reflect.union_variant_typeid(obj.variant)
+	}
 
 	// Rebuild render layers from the restored objects.
 	for &layer in g.render_layers {

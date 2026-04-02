@@ -36,6 +36,8 @@ SMOOTHING_FRAMES :: TARGET_FPS * 5
 frame_start: time.Tick
 measured_frame_times: rb.RingBuffer(f64, SMOOTHING_FRAMES) //TODO: make ring buffer which can take non-pointer type
 
+LOAD_PATH :: #config(load_path, "")
+
 
 //TODO incorporate into game_init
 pixel_filter_ex :: proc() {
@@ -166,7 +168,7 @@ Chunks :: map[ChunkId][dynamic]GameObjectHandle
 GameObjectSet :: map[GameObjectHandle]struct{}
 
 //TODO(perf) investigate a #soa version of handle_map
-MAX_OBJECTS :: 1 << 10
+MAX_OBJECTS :: 1 << 17
 GameObjectHandle :: distinct hm.Handle
 GameObjects :: hm.HandleMap(GameObject, GameObjectHandle, MAX_OBJECTS)
 GameObjectsIterator :: hm.HandleMap_Iterator(GameObject, GameObjectHandle, MAX_OBJECTS)
@@ -195,7 +197,12 @@ game_init_window :: proc() {
 game_init :: proc() {
 	game = new(Game)
 	game_init_mem(game)
+	when LOAD_PATH != "" {
+		print("loading", LOAD_PATH)
+		load_game(game, LOAD_PATH)
+	}
 	game_init_raylib(game)
+	game_start()
 }
 
 game_init_mem :: proc(game: ^Game) {
@@ -205,7 +212,7 @@ game_init_mem :: proc(game: ^Game) {
 
 	rb.init(&measured_frame_times)
 
-	reset_game()
+	reset_game(game)
 
 	//init some globals
 	for props, tile_type in TILE_PROPERTIES {
@@ -221,8 +228,6 @@ game_init_mem :: proc(game: ^Game) {
 			translate(64, 64) * rotate_degrees(f64(degrees)) * translate(-64, -64)
 		//TODO this assumes tile textures are 128x128
 	}
-
-	game_start()
 }
 game_init_raylib :: proc(game: ^Game) {
 	//load shaders
@@ -281,7 +286,7 @@ spawn_object :: proc(object: GameObject) -> GameObjectHandle {
 	return h
 }
 @(export)
-game_step :: proc() {
+game_step :: proc(game: ^Game = game) {
 	frame_start = time.tick_now()
 	total_timer := timer()
 	timer := timer()

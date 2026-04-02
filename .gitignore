@@ -16,3 +16,6 @@ odin-raylib
 palette_tool
 
 *.cbor
+
+.vscode/launch.json
+
