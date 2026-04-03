@@ -290,8 +290,10 @@ game_step :: proc(game: ^Game = game) {
 	total_timer := timer()
 	timer := timer()
 	if rl.IsKeyPressed(.I) {
-		save_game(game, "save2.cbor")
-		timer->time("save game")
+		// save_game(game, "save.cbor")
+		// timer->time("save game")
+		load_game(game, "save.cbor")
+		timer->time("load game")
 	}
 	dt := f64(rl.GetFrameTime())
 	should_simulate := !game.paused || rl.IsKeyPressed(.GRAVE) //step through frame by frame

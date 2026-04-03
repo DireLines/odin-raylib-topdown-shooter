@@ -46,8 +46,9 @@ GameSpecificGlobalState :: struct {
 	//where to spawn the player when the player object is spawned later
 	player_spawn_point: vec2,
 	player_handle:      GameObjectHandle,
+	color_to_tiletype:  map[rl.Color]TileType,
+	color_to_spawn:     map[rl.Color]SpawnType,
 }
-
 //object tags
 //these are mostly game-specific boolean tags on objects
 //GameObjects can have any set of these tags, encoded using a bit_set[ObjectTag] called `tags`
@@ -274,25 +275,21 @@ MenuState :: enum {
 //game-specific initialization logic (run once when game is started)
 //typically this will be "set up the main menu"
 game_start :: proc() {
+	game.color_to_tiletype[rl.BLACK] = .Wall
+	game.color_to_tiletype[FLOOR_MAP_COLOR] = .None
+	game.color_to_spawn[BEE_YELLOW] = .Player
+	game.color_to_spawn[BASIC_ENEMY_COLOR] = .Enemy
 	load_map :: proc() -> (tilemap: Tilemap, player_spawn: TilemapTileId) {
 		MAP_DATA :: #load("map.png")
 		tiles_img := rl.LoadImageFromMemory(".png", raw_data(MAP_DATA), i32(len(MAP_DATA)))
 		tiles_buf := maps.img_to_buf(tiles_img)
 		color_to_tile :: proc(c: rl.Color) -> Tile {
 			t := Tile{}
-			COLOR_TO_TILETYPE := map[rl.Color]TileType {
-				rl.BLACK        = .Wall,
-				FLOOR_MAP_COLOR = .None,
-			}
-			COLOR_TO_SPAWN := map[rl.Color]SpawnType {
-				BEE_YELLOW        = .Player,
-				BASIC_ENEMY_COLOR = .Enemy,
-			}
-			tiletype, ok := COLOR_TO_TILETYPE[c]
+			tiletype, ok := game.color_to_tiletype[c]
 			if ok {
 				t.type = tiletype
 			}
-			spawntype, spawn_ok := COLOR_TO_SPAWN[c]
+			spawntype, spawn_ok := game.color_to_spawn[c]
 			if spawn_ok {
 				t.spawn = spawntype
 			}
@@ -1262,9 +1259,11 @@ lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
 	return result
 }
 
-//unfortunately save/load destroys function pointers, we need to replace the ones we care about
-//which is game-specific logic, so it must go here
-replace_function_pointers_on_load :: proc(game: ^Game = game) {
+game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
+	game.game_specific_state = save.game_specific_state
+
+	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
+	//which is game-specific logic, so it must go here
 	it := hm.make_iter(&game.objects)
 	for obj, h in all_objects_with_variant(&it, UIStatBar) {
 		obj.draw = draw_ui_stat_bar
