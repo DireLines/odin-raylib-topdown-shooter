@@ -199,6 +199,9 @@ game_init :: proc() {
 	game_init_mem(game)
 	game_init_raylib(game)
 	game_start()
+	when LOAD_PATH != "" {
+		load_game(game, LOAD_PATH)
+	}
 }
 
 game_init_mem :: proc(game: ^Game) {
@@ -283,9 +286,6 @@ spawn_object :: proc(object: GameObject) -> GameObjectHandle {
 }
 @(export)
 game_step :: proc(game: ^Game = game) {
-	if game.frame_counter == 0 && !game.paused {
-		load_game(game, "save.cbor")
-	}
 	frame_start = time.tick_now()
 	total_timer := timer()
 	timer := timer()

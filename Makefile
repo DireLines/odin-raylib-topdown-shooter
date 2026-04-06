@@ -42,8 +42,6 @@ perf: #build with optimizations on and verbose timing logs enabled, for tracking
 	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:timing_logs=true
 compile-perf: #build with verbose compiler output to troubleshoot slow compiles (probably not much you can do about it lol)
 	odin build $(MAIN_DIR) -out:$(EXE) -show-timings -show-more-timings -o:speed
-troubleshoot-game-load:
-	odin build $(MAIN_DIR) -out:$(EXE) -debug -define:timing_logs=true
 
 
 hot-reload: hot-reload-libs hot-reload-dll hot-reload-exe #build hot reload game and runner
