@@ -40,7 +40,7 @@ GameSpecificGlobalState :: struct {
 	clicked_ui_object:  Maybe(GameObjectHandle),
 	menu_state:         MenuState,
 	menu_container:     GameObjectHandle,
-	global_tilemap:     Tilemap,
+	global_tilemap:     Tilemap `cbor:"-"`, //not serialized - too big
 	chunk_loading_mode: ChunkLoadingMode,
 	//we load the map immediately, but need to remember
 	//where to spawn the player when the player object is spawned later
@@ -571,19 +571,12 @@ pause_menu_stop :: proc() {
 
 //game-specific teardown / reset logic
 reset_game :: proc(g: ^Game = game) {
-
 	hm.clear(&g.objects)
-
 	clear(&g.chunks)
-
 	clear(&g.loaded_chunks)
-
 	recreate_final_transforms(g)
-
 	g.frame_counter = 0
-
 	g.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"})
-
 }
 
 //game-specific update logic (run once per frame)
@@ -1260,7 +1253,9 @@ lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
 }
 
 game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
+	curr_global_tilemap := game.global_tilemap
 	game.game_specific_state = save.game_specific_state
+	game.global_tilemap = curr_global_tilemap
 
 	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
 	//which is game-specific logic, so it must go here

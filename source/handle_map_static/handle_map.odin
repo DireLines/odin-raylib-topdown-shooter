@@ -259,7 +259,7 @@ refill_from_list :: proc(m: ^HandleMap($T, $HT, $N), list: []T) {
 	// Rebuild unused-slot linked list for any gaps in the index range.
 	m.next_unused = 0
 	m.num_unused = 0
-	for i := u32(1); i < m.num_items; i += 1 {
+	for i := m.num_items - 1; i > 0; i -= 1 {
 		if m.items[i].handle.idx == 0 {
 			m.unused_items[i] = m.next_unused
 			m.next_unused = i

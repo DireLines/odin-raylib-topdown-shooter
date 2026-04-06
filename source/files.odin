@@ -134,8 +134,8 @@ delete_atlased_font :: proc(font: rl.Font) {
 // GameSave holds only the serializable fields of Game (no giant fixed arrays or GPU handles),
 // plus the compact object list and frame buffer needed to fully restore game state.
 GameSave :: struct {
-	// compact object list (valid entries only) and frame buffer
-	objects:                    []GameObject,
+	// compact object list (valid entries only)
+	objects:                    [dynamic]GameObject,
 	// Game scalar / map fields (everything in Game not tagged cbor:"-")
 	tilemap_chunks:             map[ChunkId]TilemapChunk,
 	loaded_chunks:              map[ChunkId]struct{},
@@ -155,16 +155,17 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	// Frame buffer
 	g.frame_buffer.idx = save.frame_buffer.idx
 	for frame, i in save.frame_buffer.items {
-		g.frame_buffer.items[i] = frame
+		//collisions are the only thing we need to persist from prev frames
+		//the rest of the frame_buffer info is rebuilt each frame
+		g.frame_buffer.items[i].collisions = frame.collisions
 	}
-	g.frame_buffer = save.frame_buffer
 	g.frame = rb.get_current(&g.frame_buffer)
 	g.prev_frame = rb.get_prev(&g.frame_buffer)
 	// Objects
 	// Zero out the handle map and write objects directly at their saved indices
 	// so that all stored GameObjectHandles remain valid.
 	hm.clear(&g.objects)
-	hm.refill_from_list(&g.objects, save.objects)
+	hm.refill_from_list(&g.objects, save.objects[:])
 	it := hm.make_iter(&g.objects)
 	for obj, h in hm.iter(&it) {
 		obj._variant_type = reflect.union_variant_typeid(obj.variant)
@@ -240,11 +241,10 @@ game_to_cbor :: proc(
 		quit                       = g.quit,
 		main_camera                = g.main_camera,
 		game_specific_state        = g.game_specific_state,
-		objects                    = objects[:],
+		objects                    = objects,
 		frame_buffer               = g.frame_buffer,
 	}
-	// Per-field size breakdown (uses temp allocator, freed at end of frame).
-	print_field_size :: proc(name: string, value: $T) {
+	print_field_info :: proc(name: string, value: $T) {
 		d, e := cbor.marshal(value, allocator = context.temp_allocator)
 		if e == nil {
 			print(name, "->", len(d), "bytes")
@@ -253,40 +253,34 @@ game_to_cbor :: proc(
 		}
 	}
 	print("--- GameSave CBOR size breakdown ---")
-	print_field_size("tilemap_chunks", save.tilemap_chunks)
-	print_field_size("loaded_chunks", save.loaded_chunks)
-	print_field_size("room_chunks", save.room_chunks)
-	print_field_size("frame_counter", save.frame_counter)
-	print_field_size("render_counter", save.render_counter)
-	print_field_size("screen_space_parent_handle", save.screen_space_parent_handle)
-	print_field_size("paused", save.paused)
-	print_field_size("quit", save.quit)
-	print_field_size("main_camera", save.main_camera)
-	print_field_size("game_specific_state", save.game_specific_state)
-	print_field_size("frame_buffer", save.frame_buffer)
-	print_field_size("objects", save.objects)
+	print_field_info("tilemap_chunks", save.tilemap_chunks)
+	print_field_info("loaded_chunks", save.loaded_chunks)
+	print_field_info("room_chunks", save.room_chunks)
+	print_field_info("frame_counter", save.frame_counter)
+	print_field_info("render_counter", save.render_counter)
+	print_field_info("screen_space_parent_handle", save.screen_space_parent_handle)
+	print_field_info("paused", save.paused)
+	print_field_info("quit", save.quit)
+	print_field_info("main_camera", save.main_camera)
+	print_field_info("game_specific_state", save.game_specific_state)
+	print_field_info("frame_buffer", save.frame_buffer)
+	print_field_info("objects", save.objects)
 	print("------------------------------------")
 
 	return cbor.marshal(save, allocator = allocator)
-
 }
 
 // Deserializes CBOR bytes and applies the result to g.
 // See apply_save_to_game for caveats about object cleanup before calling.
 game_from_cbor :: proc(g: ^Game, data: []byte) -> bool {
-	print(#procedure, 1)
 	save := new(GameSave)
 	defer free(save)
-	print(#procedure, 2)
-	err := cbor.unmarshal(data, save)
-	print(#procedure, 3)
+	err := cbor.unmarshal(data, save, {.Trusted_Input})
 	if err != nil {
 		print("game_from_cbor: unmarshal error:", err)
 		return false
 	}
-	print(#procedure, 4)
 	apply_save_to_game(g, save)
-	print(#procedure, 5)
 	return true
 }
 
@@ -298,13 +292,13 @@ save_game :: proc(g: ^Game, path: string = "") -> bool {
 		print("save_game: marshal error:", merr)
 		return false
 	}
-	print("saving", len(data), "bytes")
 	werr := os.write_entire_file(path, data)
-	free(raw_data(data))
+	defer free(raw_data(data))
 	if werr != nil {
 		print("save_game: failed to write file:", path, werr)
 		return false
 	}
+	print("saved", len(data), "bytes")
 	return true
 }
 
@@ -317,8 +311,8 @@ load_game :: proc(g: ^Game, path: string) -> bool {
 		print("load_game: failed to read file:", path, rerr)
 		return false
 	}
-	print("loading", len(data), "bytes")
 	result := game_from_cbor(g, data)
-	free(raw_data(data))
+	print("loaded", len(data), "bytes")
+	defer free(raw_data(data))
 	return result
 }

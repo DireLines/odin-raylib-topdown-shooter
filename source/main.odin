@@ -137,13 +137,13 @@ GameObjectOrList :: union {
 GameObject :: struct {
 	handle:                    GameObjectHandle, //needed for handle map
 	parent_handle:             Maybe(GameObjectHandle),
-	associated_objects:        map[string]GameObjectOrList,
+	associated_objects:        map[string]GameObjectOrList `cbor:"-"`, //TODO this should be serialized - seems cbor unmarshal has problems with this specifically
 	name:                      string,
 	using transform:           Transform,
 	using physics:             PhysicsInfo,
 	using render_info:         RenderInfo,
 	animation:                 AnimationState,
-	hitbox:                    Hitbox, //TODO: hitboxes: Small_Array(MAX_HITBOXES_PER_OBJECT,Hitbox) // multiple hitboxes
+	hitbox:                    Hitbox, //TODO: hitboxes: Small_Array(MAX_HITBOXES_PER_OBJECT, Hitbox) // multiple hitboxes
 	static:                    bool, //this object promises not to change its local or global transform, allowing some optimizations
 	tags:                      Tags,
 	variant:                   GameObjectVariant,
@@ -157,9 +157,9 @@ TransformScreenSpace :: struct {
 }
 //stuff which is computed every frame and is useful to reference in gameplay code
 GameFrameData :: struct {
-	chunks:                     Chunks, //keeps track of which objects are in which spatial regions
-	objects_in_multiple_chunks: GameObjectSet, //edge cases happen when objects are on edges or corners or just really big, this will let us know if we need to handle them
-	final_transforms:           [dynamic]TransformScreenSpace, //computed at the start of each frame and after collision resolution, holds local->world transforms for each object in objects, index matched
+	chunks:                     Chunks `cbor:"-"`, //keeps track of which objects are in which spatial regions
+	objects_in_multiple_chunks: GameObjectSet `cbor:"-"`, //edge cases happen when objects are on edges or corners or just really big, this will let us know if we need to handle them
+	final_transforms:           [dynamic]TransformScreenSpace `cbor:"-"`, //computed at the start of each frame and after collision resolution, holds local->world transforms for each object in objects, index matched
 	collisions:                 Collisions,
 }
 //long type names
@@ -197,9 +197,6 @@ game_init_window :: proc() {
 game_init :: proc() {
 	game = new(Game)
 	game_init_mem(game)
-	when LOAD_PATH != "" {
-		load_game(game, LOAD_PATH)
-	}
 	game_init_raylib(game)
 	game_start()
 }
@@ -286,13 +283,26 @@ spawn_object :: proc(object: GameObject) -> GameObjectHandle {
 }
 @(export)
 game_step :: proc(game: ^Game = game) {
+	if game.frame_counter == 0 && !game.paused {
+		load_game(game, "save.cbor")
+	}
 	frame_start = time.tick_now()
 	total_timer := timer()
 	timer := timer()
 	if rl.IsKeyPressed(.I) {
-		// save_game(game, "save.cbor")
-		// timer->time("save game")
+		save_game(game, "save.cbor")
+		timer->time("save game")
+	}
+	if rl.IsKeyPressed(.O) {
 		load_game(game, "save.cbor")
+		timer->time("load game")
+	}
+	if rl.IsKeyPressed(.K) {
+		save_game(game, "save2.cbor")
+		timer->time("save game")
+	}
+	if rl.IsKeyPressed(.L) {
+		load_game(game, "save2.cbor")
 		timer->time("load game")
 	}
 	dt := f64(rl.GetFrameTime())
