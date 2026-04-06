@@ -252,20 +252,22 @@ game_to_cbor :: proc(
 			print(name, "-> marshal error:", e)
 		}
 	}
-	print("--- GameSave CBOR size breakdown ---")
-	print_field_info("tilemap_chunks", save.tilemap_chunks)
-	print_field_info("loaded_chunks", save.loaded_chunks)
-	print_field_info("room_chunks", save.room_chunks)
-	print_field_info("frame_counter", save.frame_counter)
-	print_field_info("render_counter", save.render_counter)
-	print_field_info("screen_space_parent_handle", save.screen_space_parent_handle)
-	print_field_info("paused", save.paused)
-	print_field_info("quit", save.quit)
-	print_field_info("main_camera", save.main_camera)
-	print_field_info("game_specific_state", save.game_specific_state)
-	print_field_info("frame_buffer", save.frame_buffer)
-	print_field_info("objects", save.objects)
-	print("------------------------------------")
+	when #config(save_size_breakdown, false) {
+		print("--- GameSave CBOR size breakdown ---")
+		print_field_info("tilemap_chunks", save.tilemap_chunks)
+		print_field_info("loaded_chunks", save.loaded_chunks)
+		print_field_info("room_chunks", save.room_chunks)
+		print_field_info("frame_counter", save.frame_counter)
+		print_field_info("render_counter", save.render_counter)
+		print_field_info("screen_space_parent_handle", save.screen_space_parent_handle)
+		print_field_info("paused", save.paused)
+		print_field_info("quit", save.quit)
+		print_field_info("main_camera", save.main_camera)
+		print_field_info("game_specific_state", save.game_specific_state)
+		print_field_info("frame_buffer", save.frame_buffer)
+		print_field_info("objects", save.objects)
+		print("------------------------------------")
+	}
 
 	return cbor.marshal(save, allocator = allocator)
 }
