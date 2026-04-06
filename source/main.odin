@@ -107,17 +107,17 @@ rl_rect_to_rect :: proc(r: rl.Rectangle) -> Rect {
 
 
 Game :: struct {
-	objects:                    GameObjects `cbor:"-"`,
+	objects:                    GameObjects,
 	tilemap_chunks:             map[ChunkId]TilemapChunk,
 	loaded_chunks:              map[ChunkId]struct{},
 	room_chunks:                map[ChunkId]struct{},
-	render_layers:              [NUM_RENDER_LAYERS][dynamic]GameObjectHandle `cbor:"-"`, // determines order in which objects are drawn to screen; rebuilt on load
-	textures:                   map[string]rl.Texture `cbor:"-"`,
-	sounds:                     map[string]rl.Sound `cbor:"-"`,
-	shaders:                    [ShaderName]rl.Shader `cbor:"-"`,
-	fonts:                      map[FontName]rl.Font `cbor:"-"`,
-	using frame:                ^GameFrameData `cbor:"-"`,
-	prev_frame:                 ^GameFrameData `cbor:"-"`,
+	render_layers:              [NUM_RENDER_LAYERS][dynamic]GameObjectHandle, // determines order in which objects are drawn to screen; rebuilt on load
+	textures:                   map[string]rl.Texture,
+	sounds:                     map[string]rl.Sound,
+	shaders:                    [ShaderName]rl.Shader,
+	fonts:                      map[FontName]rl.Font,
+	using frame:                ^GameFrameData,
+	prev_frame:                 ^GameFrameData,
 	frame_buffer:               rb.RingBuffer(GameFrameData, 2), //some logic will need to refer to previous frame's events, so use a swap buffer
 	frame_counter:              u64, //simulated frames
 	render_counter:             u64, // frames including renders while game is paused inside of menus and such

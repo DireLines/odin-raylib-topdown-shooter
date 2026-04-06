@@ -126,17 +126,15 @@ delete_atlased_font :: proc(font: rl.Font) {
 // Serializes/deserializes game state to/from CBOR.
 //
 // TODO RESTORE FUNCTION POINTERS
-// proc fields cannot be serialized. They will be nil after load. Options:
+// proc fields cannot be serialized. They will be nil after load. Options:oo
 //    1. Re-assign after load: iterate objects and re-attach the correct proc by variant/name.
 //    2. Store a string key alongside each proc and use a lookup table at runtime.
 //    3. Don't save UI objects — rebuild menus from scratch on load.
 
-// GameSave holds only the serializable fields of Game (no giant fixed arrays or GPU handles),
-// plus the compact object list and frame buffer needed to fully restore game state.
+// GameSave holds only the serializable fields of Game
 GameSave :: struct {
 	// compact object list (valid entries only)
 	objects:                    [dynamic]GameObject,
-	// Game scalar / map fields (everything in Game not tagged cbor:"-")
 	tilemap_chunks:             map[ChunkId]TilemapChunk,
 	loaded_chunks:              map[ChunkId]struct{},
 	room_chunks:                map[ChunkId]struct{},
