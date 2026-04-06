@@ -567,6 +567,7 @@ pause_menu_stop :: proc() {
 	for button in pause_menu_buttons {
 		hm.remove(&game.objects, button)
 	}
+	free(&menu_container_obj.associated_objects["pause_menu"])
 }
 
 //game-specific teardown / reset logic
