@@ -137,7 +137,7 @@ GameObjectOrList :: union {
 GameObject :: struct {
 	handle:                    GameObjectHandle, //needed for handle map
 	parent_handle:             Maybe(GameObjectHandle),
-	associated_objects:        map[string]GameObjectOrList `cbor:"-"`, //TODO this should be serialized - seems cbor unmarshal has problems with this specifically
+	associated_objects:        map[string]GameObjectOrList, //TODO this should be serialized - seems cbor unmarshal has problems with this specifically
 	name:                      string,
 	using transform:           Transform,
 	using physics:             PhysicsInfo,
@@ -286,6 +286,8 @@ spawn_object :: proc(object: GameObject) -> GameObjectHandle {
 }
 @(export)
 game_step :: proc(game: ^Game = game) {
+	save_game(game, "save.cbor")
+	load_game(game, "save.cbor")
 	frame_start = time.tick_now()
 	total_timer := timer()
 	timer := timer()
