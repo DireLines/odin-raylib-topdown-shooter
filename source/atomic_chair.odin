@@ -518,7 +518,7 @@ spawn_player :: proc() -> GameObjectHandle {
 
 atomic_chair_start :: proc() {
 	game.paused = false
-	game.chunk_loading_mode = .Room
+	game.chunk_loading_mode = .Proximity
 	if game.player_handle.idx == 0 {
 		//not loading from a file with a player in it
 		game.player_handle = spawn_player()
@@ -618,7 +618,7 @@ atomic_chair_update :: proc(dt: f64) {
 				for j in 0 ..< CHUNK_HEIGHT_TILES {
 					if tilemap[i][j].spawn == .Enemy {
 						spawn_tile := min_corner + TilemapTileId{i, j}
-						for _ in 0 ..< 3 {
+						for _ in 0 ..< 30 {
 							pos := random_point_in_tile(spawn_tile)
 							spawn_enemy(pos, .Basic)
 						}

@@ -245,7 +245,7 @@ game_to_cbor :: proc(
 	print_field_info :: proc(name: string, value: $T) {
 		d, e := cbor.marshal(value, allocator = context.temp_allocator)
 		if e == nil {
-			print(name, "->", len(d), "bytes")
+			print(len(d), "\t\tbytes:", name)
 		} else {
 			print(name, "-> marshal error:", e)
 		}
