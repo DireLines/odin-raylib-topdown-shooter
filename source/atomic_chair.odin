@@ -58,7 +58,9 @@ ObjectTag :: enum {
 	Collide, // if present, the collision system will consider this object in collisions
 	Sprite, // if present, the renderer will draw the sprite / texture data of this object
 	Text, // if present, the renderer will draw the text data of this object
-	CustomDraw, //if present, the renderer will call the custom draw function on this object
+	CustomDraw, // if present, the renderer will call the custom draw function on this object
+	DoNotSerialize, // if present, saving will not save this object
+	DontDestroyOnLoad, // if present, loading will not reset or overwrite this object
 	//user-defined tags
 	Bullet,
 	Player,
@@ -322,7 +324,7 @@ main_menu_start :: proc() {
 		texture = atlas_textures[.Earshot_Title],
 		render_layer = uint(RenderLayer.UI),
 		color = rl.WHITE,
-		tags = {.Sprite},
+		tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
 	},
 	)
 	play_button := spawn_button(
@@ -361,7 +363,7 @@ main_menu_start :: proc() {
 		append(&main_menu_objects, quit_button)
 	}
 	game.menu_container = spawn_object(
-		GameObject{associated_objects = {"main_menu" = main_menu_objects}},
+		GameObject{associated_objects = {"main_menu" = main_menu_objects}, tags = {.DoNotSerialize, .DontDestroyOnLoad}},
 	)
 }
 
@@ -903,7 +905,7 @@ spawn_button :: proc(
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {font_size = UI_MAIN_FONT_SIZE},
 		},
-		tags = {.Sprite, .Text},
+		tags = {.Sprite, .Text, .DoNotSerialize, .DontDestroyOnLoad},
 		variant = UIButton {
 			min_scale = min_scale,
 			max_scale = {min_scale.x * 1.3, min_scale.y},
@@ -1034,7 +1036,7 @@ spawn_ui_slider :: proc(
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {font_size = UI_SECONDARY_FONT_SIZE, text_color = rl.BLACK},
 		},
-		tags = {.Sprite, .Text},
+		tags = {.Sprite, .Text, .DoNotSerialize, .DontDestroyOnLoad},
 		variant = UIButton {
 			min_scale = handle_scale,
 			max_scale = {handle_scale.x, handle_scale.y},
@@ -1065,7 +1067,7 @@ spawn_ui_slider :: proc(
 			color = {255, 255, 255, 100},
 			render_layer = uint(RenderLayer.UI) - 1,
 		},
-		tags = {.Sprite},
+		tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
 		parent_handle = game.screen_space_parent_handle,
 		variant = slider_info,
 	}
@@ -1090,7 +1092,7 @@ spawn_ui_slider :: proc(
 				font_size = UI_MAIN_FONT_SIZE,
 			},
 		},
-		tags = {.Text},
+		tags = {.Text, .DoNotSerialize, .DontDestroyOnLoad},
 		parent_handle = game.screen_space_parent_handle,
 	}
 	label_handle = spawn_object(label_def)

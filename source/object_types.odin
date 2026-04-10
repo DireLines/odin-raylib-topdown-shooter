@@ -8,15 +8,44 @@ GameObjectInst :: struct($T: typeid) {
 	using obj: ^GameObject,
 	using var: ^T,
 }
-get_object_from_ptr_typed :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
-	//TODO error here when variant type is wrong
-	return GameObjectInst(T){o, &o.variant.(T)}
+get_object_from_ptr_typed :: proc(
+	o: ^GameObject,
+	$T: typeid,
+) -> (
+	GameObjectInst(T),
+	bool,
+) #optional_ok {
+	if o == nil {
+		print("nil pointer passed to", #procedure)
+		return GameObjectInst(T){o, nil}, false
+	}
+	if o._variant_type != T {
+		print(
+			"object variant for",
+			o.handle,
+			"was expected to be",
+			typeid_of(T),
+			"but was",
+			o._variant_type,
+		)
+		return GameObjectInst(T){o, nil}, false
+	}
+	return GameObjectInst(T){o, &o.variant.(T)}, true
 }
-get_object_from_handle_typed :: proc(h: GameObjectHandle, $T: typeid) -> GameObjectInst(T) {
-	o := hm.get(&game.objects, h)
+get_object_from_handle_typed :: proc(
+	h: GameObjectHandle,
+	$T: typeid,
+) -> (
+	GameObjectInst(T),
+	bool,
+) #optional_ok {
+	o, ok := hm.get(&game.objects, h)
+	if !ok {
+		print("invalid handle", h, "passed to", #procedure)
+	}
 	return get_object_from_ptr_typed(o, T)
 }
-get_object_from_handle_untyped :: proc(h: GameObjectHandle) -> ^GameObject {
+get_object_from_handle_untyped :: proc(h: GameObjectHandle) -> (^GameObject, bool) #optional_ok {
 	return hm.get(&game.objects, h)
 }
 get_object :: proc {
