@@ -35,7 +35,7 @@ speed: #build and run with optimizations on
 release: atlas #make desktop release build
 	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:validate=false -define:show_fps=false
 debug: #build with debug symbols enabled for use with a debugger
-	odin build $(MAIN_DIR) -out:$(EXE) -debug -o:none -define:draw_debug_shapes=true
+	odin build $(MAIN_DIR) -out:$(EXE) -debug -o:none -define:draw_debug_shapes=true -define:show_object_list=true
 mem: #build using a tracking allocator to find memory leaks
 	odin build $(MAIN_DIR) -out:$(EXE) -o:speed -define:track_allocations=true
 perf: #build with optimizations on and verbose timing logs enabled, for tracking performance stats

@@ -363,7 +363,10 @@ main_menu_start :: proc() {
 		append(&main_menu_objects, quit_button)
 	}
 	game.menu_container = spawn_object(
-		GameObject{associated_objects = {"main_menu" = main_menu_objects}, tags = {.DoNotSerialize, .DontDestroyOnLoad}},
+		GameObject {
+			associated_objects = {"main_menu" = main_menu_objects},
+			tags = {.DoNotSerialize, .DontDestroyOnLoad},
+		},
 	)
 }
 
@@ -580,6 +583,7 @@ reset_game :: proc(g: ^Game = game) {
 	recreate_final_transforms(g)
 	g.frame_counter = 0
 	g.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"})
+	g.player_handle = {}
 }
 
 //game-specific update logic (run once per frame)

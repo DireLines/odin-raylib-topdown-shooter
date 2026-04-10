@@ -586,6 +586,34 @@ render :: proc() {
 	}
 	timer->time("draw fps display")
 
+	when #config(show_object_list, false) {{
+			FONT_SIZE :: 12
+			ROW_HEIGHT :: 20
+			x: i32 = 16
+			limit := min(len(game.objects.items), 200)
+			for i in 0 ..< limit {
+				y := i32(i) * ROW_HEIGHT
+				if y + ROW_HEIGHT > rl.GetScreenHeight() {
+					break
+				}
+				item := game.objects.items[i]
+				text: string
+				if i == 0 || item.handle.idx == 0 {
+					text = fmt.tprintf("%d", i)
+				} else {
+					text = fmt.tprintf("%d (gen %d) %s", i, item.handle.gen, item.name)
+				}
+				rl.DrawText(
+					strings.clone_to_cstring(text, context.temp_allocator),
+					x,
+					y,
+					FONT_SIZE,
+					rl.WHITE,
+				)
+			}
+		}
+	}
+
 }
 
 get_chunks_near_cam :: proc(border_screen_multiples: f64 = 0) -> []ChunkId {
