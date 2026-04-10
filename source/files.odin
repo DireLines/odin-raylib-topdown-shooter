@@ -165,18 +165,17 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	// so that all stored GameObjectHandles remain valid.
 	// Objects tagged DontDestroyOnLoad are preserved across loads; any save entry
 	// whose index collides with one is ignored (with a warning).
-	dont_destroy := make([dynamic]GameObject, context.temp_allocator)
+	filtered_objects := make([dynamic]GameObject, context.temp_allocator)
 	protected_indices := make(map[u32]struct{}, allocator = context.temp_allocator)
 	{
 		it := hm.make_iter(&g.objects)
 		for obj in hm.iter(&it) {
 			if .DontDestroyOnLoad in obj.tags {
-				append(&dont_destroy, obj^)
+				append(&filtered_objects, obj^)
 				protected_indices[obj.handle.idx] = {}
 			}
 		}
 	}
-	filtered_objects := make([dynamic]GameObject, context.temp_allocator)
 	for obj in save.objects {
 		if obj.handle.idx in protected_indices {
 			print(
@@ -186,9 +185,6 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 			)
 			continue
 		}
-		append(&filtered_objects, obj)
-	}
-	for obj in dont_destroy {
 		append(&filtered_objects, obj)
 	}
 	hm.clear(&g.objects)
