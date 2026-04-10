@@ -415,6 +415,7 @@ recreate_final_transforms :: proc(game: ^Game = game) {
 }
 objects_to_draw: map[GameObjectHandle]struct{}
 tile_render_layers_used: map[uint]struct{}
+object_list_display_start_index: int
 render :: proc() {
 	timer := timer()
 	//figure out which objects are on screen
@@ -588,12 +589,23 @@ render :: proc() {
 
 	when #config(show_object_list, false) {{
 			FONT_SIZE :: 12
-			ROW_HEIGHT :: 20
-			x: i32 = 16
-			limit := min(len(game.objects.items), 200)
-			for i in 0 ..< limit {
-				y := i32(i) * ROW_HEIGHT
-				if y + ROW_HEIGHT > rl.GetScreenHeight() {
+			ROW_HEIGHT :: 16
+			if rl.IsKeyDown(.LEFT_BRACKET) {
+				object_list_display_start_index = max(0, object_list_display_start_index - 1)
+			}
+			if rl.IsKeyDown(.RIGHT_BRACKET) {
+				object_list_display_start_index = min(
+					int(game.objects.num_items),
+					object_list_display_start_index + 1,
+				)
+			}
+			label_pos_x: i32 = 16
+			for i in object_list_display_start_index ..< object_list_display_start_index + 200 {
+				if i >= len(game.objects.items) {
+					break
+				}
+				label_pos_y := i32(i - object_list_display_start_index) * ROW_HEIGHT
+				if label_pos_y + ROW_HEIGHT > rl.GetScreenHeight() {
 					break
 				}
 				item := game.objects.items[i]
@@ -605,14 +617,13 @@ render :: proc() {
 				}
 				rl.DrawText(
 					strings.clone_to_cstring(text, context.temp_allocator),
-					x,
-					y,
+					label_pos_x,
+					label_pos_y,
 					FONT_SIZE,
 					rl.WHITE,
 				)
 			}
-		}
-	}
+		}}
 
 }
 
