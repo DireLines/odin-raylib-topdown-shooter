@@ -623,8 +623,8 @@ render :: proc() {
 					rl.WHITE,
 				)
 			}
-		}}
-
+		}
+	}
 }
 
 get_chunks_near_cam :: proc(border_screen_multiples: f64 = 0) -> []ChunkId {
