@@ -2,6 +2,7 @@ package game
 
 import "core:c"
 import "core:fmt"
+import "core:math"
 import "core:math/linalg"
 import "core:strings"
 import "core:time"
@@ -193,6 +194,13 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		texture := atlas
 		source := obj.texture.rect
 		transform := final_transform.transform
+		disp_transform, has_disp_transform := obj.display_transform.?
+		if has_disp_transform {
+			if disp_transform.scale == {0, 0} {
+				disp_transform.scale = {1, 1}
+			}
+			transform *= apply(disp_transform)
+		}
 		if obj.include_transparent_border {
 			offset := vec2{f64(obj.texture.offset_left), f64(obj.texture.offset_top)}
 			transform = transform * translate_vec2(offset)

@@ -720,6 +720,17 @@ atomic_chair_update :: proc(dt: f64) {
 		if rl.IsKeyPressed(.R) {
 			player_take_damage(get_object(player, Player))
 		}
+		if desired_anim_name != .Squatman_Idle {
+			player.display_transform = Transform {
+				position = 5 * {
+						math.sin(f64(game.frame_counter) / 4),
+						math.cos(f64(game.frame_counter) / 4),
+					},
+				rotation = 5 * math.sin(f64(game.frame_counter) / 4),
+			}
+		} else {
+			player.display_transform = nil
+		}
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
 		timer->time("move player")

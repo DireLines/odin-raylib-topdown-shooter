@@ -139,7 +139,8 @@ GameObject :: struct {
 	parent_handle:             Maybe(GameObjectHandle),
 	associated_objects:        map[string]GameObjectOrList `cbor:"-"`, //TODO this should be serialized - seems cbor unmarshal has problems with this specifically
 	name:                      string,
-	using transform:           Transform,
+	using transform:           Transform, //transform determining the object's actual world position
+	display_transform:         Maybe(Transform), //transform optionally applied on top of main transform to do programmatic animations
 	using physics:             PhysicsInfo,
 	using render_info:         RenderInfo,
 	animation:                 AnimationState,
