@@ -729,7 +729,7 @@ atomic_chair_update :: proc(dt: f64) {
 				rotation = 5 * math.sin(f64(game.frame_counter) / 4),
 			}
 		} else {
-			player.display_transform = nil
+			player.display_transform = {}
 		}
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
@@ -859,6 +859,9 @@ atomic_chair_update :: proc(dt: f64) {
 					enemy.state = .Alive_Active
 				}
 			case .Alive_Active:
+				//TODO enemy behavior
+				enemy.display_transform.scale =
+					vec2{1, 1} + 0.05 * math.sin(f64(game.frame_counter) / 5)
 			case .Dead:
 				hm.remove(&game.objects, h)
 				hm.remove(&game.objects, enemy.health_bar)

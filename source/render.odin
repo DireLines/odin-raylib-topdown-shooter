@@ -66,7 +66,7 @@ draw_texture_quad :: proc(
 	texture: rl.Texture2D,
 	source: Rect,
 	transform: mat3,
-	color: rl.Color,
+	color: rl.Color = rl.WHITE,
 	screen_space: bool = false,
 	keep_original_dimensions: bool = false,
 ) {
@@ -190,12 +190,12 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		}
 	}
 	transform := final_transform.transform
-	disp_transform, has_disp_transform := obj.display_transform.?
-	if has_disp_transform {
+	disp_transform := obj.display_transform
+	if disp_transform != {} {
 		if disp_transform.scale == {0, 0} {
 			disp_transform.scale = {1, 1}
 		}
-		transform *= apply(disp_transform)
+		transform *= pivot(obj.transform) * apply(disp_transform) * unpivot(obj.transform)
 	}
 	parent_handle, has_parent := obj.parent_handle.?
 	if .Sprite in obj.tags {
