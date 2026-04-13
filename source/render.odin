@@ -189,18 +189,18 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 			}
 		}
 	}
+	transform := final_transform.transform
+	disp_transform, has_disp_transform := obj.display_transform.?
+	if has_disp_transform {
+		if disp_transform.scale == {0, 0} {
+			disp_transform.scale = {1, 1}
+		}
+		transform *= apply(disp_transform)
+	}
 	parent_handle, has_parent := obj.parent_handle.?
 	if .Sprite in obj.tags {
 		texture := atlas
 		source := obj.texture.rect
-		transform := final_transform.transform
-		disp_transform, has_disp_transform := obj.display_transform.?
-		if has_disp_transform {
-			if disp_transform.scale == {0, 0} {
-				disp_transform.scale = {1, 1}
-			}
-			transform *= apply(disp_transform)
-		}
 		if obj.include_transparent_border {
 			offset := vec2{f64(obj.texture.offset_left), f64(obj.texture.offset_top)}
 			transform = transform * translate_vec2(offset)
@@ -220,7 +220,7 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		cur_string_cstr := strings.clone_to_cstring(obj.text, context.temp_allocator)
 		current_string_dims := rl.MeasureTextEx(font, cur_string_cstr, font_size, 0)
 		total_dims := current_string_dims
-		word_start_pos := mat_vec_mul(final_transform.transform, obj.pivot)
+		word_start_pos := mat_vec_mul(transform, obj.pivot)
 		if !final_transform.screen_space {
 			word_start_pos = world_to_screen(word_start_pos, screen_conversion)
 		}
