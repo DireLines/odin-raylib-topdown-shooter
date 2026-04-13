@@ -624,7 +624,7 @@ atomic_chair_update :: proc(dt: f64) {
 				for j in 0 ..< CHUNK_HEIGHT_TILES {
 					if tilemap[i][j].spawn == .Enemy {
 						spawn_tile := min_corner + TilemapTileId{i, j}
-						for _ in 0 ..< 30 {
+						for _ in 0 ..< 5 {
 							pos := random_point_in_tile(spawn_tile)
 							spawn_enemy(pos, .Basic)
 						}
@@ -992,7 +992,7 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectH
 		},
 		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
 		velocity = vel,
-		hitbox = {layer = layer, shape = AABB{min = -(tex_dims / 2), max = tex_dims / 2}},
+		hitbox = {layer = layer, shape = Circle{pos = {}, radius = tex_dims.x / 2}},
 		tags = {.Bullet, .Collide, .Sprite},
 		variant = Bullet{nil, .Alive},
 	}
