@@ -289,22 +289,6 @@ game_step :: proc(game: ^Game = game) {
 	frame_start = time.tick_now()
 	total_timer := timer()
 	timer := timer()
-	if rl.IsKeyPressed(.I) {
-		save_game(game, "save.cbor")
-		timer->time("save game")
-	}
-	if rl.IsKeyPressed(.O) {
-		load_game(game, "save.cbor")
-		timer->time("load game")
-	}
-	if rl.IsKeyPressed(.K) {
-		save_game(game, "save2.cbor")
-		timer->time("save game")
-	}
-	if rl.IsKeyPressed(.L) {
-		load_game(game, "save2.cbor")
-		timer->time("load game")
-	}
 	dt := f64(rl.GetFrameTime())
 	should_simulate := !game.paused || rl.IsKeyPressed(.GRAVE) //step through frame by frame
 	recreate_final_transforms() //need to know global positions of things during physics update
