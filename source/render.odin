@@ -2,7 +2,6 @@ package game
 
 import "core:c"
 import "core:fmt"
-import "core:math"
 import "core:math/linalg"
 import "core:strings"
 import "core:time"
@@ -20,6 +19,13 @@ RenderInfo :: struct {
 	using import_mode:      TextureImportMode,
 	draw:                   proc(obj: ^GameObject) `cbor:"-"`, //custom draw proc, not used unless .CustomDraw is on in object's tags
 }
+
+when ODIN_OS == .JS {
+	DEFAULT_SHADER :: ShaderName.None
+} else {
+	DEFAULT_SHADER :: ShaderName.PixelFilter
+}
+
 
 TextureImportMode :: struct {
 	//whether to offset sprite to account for transparent border inside original document,
@@ -199,7 +205,10 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	}
 	parent_handle, has_parent := obj.parent_handle.?
 	if .Sprite in obj.tags {
-		texture := atlas
+		texture := atlas_bilinear
+		// if obj.shader == .PixelFilter || (DEFAULT_SHADER == .PixelFilter && obj.shader == .None) {
+		// 	texture = atlas_bilinear
+		// }
 		source := obj.texture.rect
 		if obj.include_transparent_border {
 			offset := vec2{f64(obj.texture.offset_left), f64(obj.texture.offset_top)}
@@ -453,17 +462,24 @@ render :: proc() {
 	//insert tilemap tiles into the render layers
 	//draw using raylib
 	rl.BeginDrawing(); defer rl.EndDrawing()
+	rl.BeginBlendMode(.ALPHA_PREMULTIPLY); defer rl.EndBlendMode()
 
 	// darkgray := rl.Color{32, 32, 30, 255}
 	rl.ClearBackground(rl.BLACK)
 	curr_shader_name: ShaderName //tracking this to know when to switch shader modes, which is expensive
 	change_shader :: proc(s: ShaderName, curr: ^ShaderName) {
+		is_default :: proc(s: ShaderName) -> bool {
+			return s == DEFAULT_SHADER || s == .None
+		}
 		if curr^ == s {return}
+		if is_default(curr^) && is_default(s) {return}
 		if curr^ != .None {
 			rl.EndShaderMode()
 		}
 		if s != .None {
 			rl.BeginShaderMode(game.shaders[s])
+		} else {
+			rl.BeginShaderMode(game.shaders[DEFAULT_SHADER])
 		}
 		curr^ = s
 	}

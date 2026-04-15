@@ -81,7 +81,7 @@ pixel_filter_ex :: proc() {
 // the executable starts it loads a raylib texture from this data.
 ATLAS_DATA :: #load("atlas.png")
 // This is loaded in `main` from `ATLAS_DATA`
-atlas: rl.Texture
+atlas, atlas_bilinear: rl.Texture
 
 PIXEL_FILTER_SHADER :: #load("shaders/pixel_filter.fs", cstring)
 SOLID_COLOR_SHADER :: #load("shaders/solid_color.fs", cstring)
@@ -240,6 +240,8 @@ game_init_raylib :: proc(game: ^Game) {
 	// Load atlas from ATLAS_DATA, which was stored in the executable at compile-time.
 	atlas_image := rl.LoadImageFromMemory(".png", raw_data(ATLAS_DATA), i32(len(ATLAS_DATA)))
 	atlas = rl.LoadTextureFromImage(atlas_image)
+	atlas_bilinear = rl.LoadTextureFromImage(atlas_image)
+	rl.SetTextureFilter(atlas_bilinear, .BILINEAR)
 	rl.UnloadImage(atlas_image)
 	// Set the shape's drawing texture, this makes rl.DrawRectangleRec etc use the atlas
 	rl.SetShapesTexture(atlas, rect_to_rl_rect(SHAPES_TEXTURE_RECT))
