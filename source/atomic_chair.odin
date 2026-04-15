@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
+import "core:slice"
 import hm "handle_map_static"
 import maps "mapgen"
 import rl "vendor:raylib"
@@ -859,7 +860,54 @@ atomic_chair_update :: proc(dt: f64) {
 					enemy.state = .Alive_Active
 				}
 			case .Alive_Active:
-				//TODO enemy behavior
+				if uint(game.frame_counter) %% PATHFINDING_UPDATE_INTERVAL ==
+				   enemy.pathfind_index {
+					delete(enemy.path)
+					enemy.path = TilePath(
+						slice.clone(get_a_star_path(enemy.position, player.position)),
+					)
+				}
+				sees_player := has_line_of_sight(enemy.position, player.position)
+				line_color := sees_player ? set_alpha(rl.GREEN, 100) : set_alpha(rl.RED, 100)
+				// for i in 0 ..< len(enemy.path) - 1 {
+				// 	draw_debug_line(
+				// 		get_tile_center(enemy.path[i]),
+				// 		get_tile_center(enemy.path[i + 1]),
+				// 		5,
+				// 		line_color,
+				// 	)
+				// }
+				player_sense_distance :: TILE_SIZE * 50
+				target: vec2 = player.position
+				// print_line_of_sight( enemy.position, player.position)
+				if !sees_player && len(enemy.path) > 0 {
+					epsilon :: 0.00001
+					target = get_farthest_visible_point_in_path(
+						enemy.position + epsilon,
+						enemy.path,
+					)
+					// draw_debug_circle(target, color = set_alpha(rl.BLUE, 100), filled = false)
+				}
+				player_diff := player.position - enemy.position
+				target_diff := target - enemy.position
+				enemy_speed :: 300
+				dist_to_player := linalg.length(player_diff)
+				if dist_to_player > activate_distance {
+					enemy.state = .Alive_Inactive
+				} else if dist_to_player < player_sense_distance {
+					if linalg.length(target_diff) < TILE_SIZE * 0.1 {
+						enemy.inst_velocity = 0
+					} else {
+						enemy.inst_velocity = linalg.normalize(target_diff) * enemy_speed
+					}
+				} else {
+					spawn_diff := enemy.spawn_point - enemy.position
+					if linalg.length(spawn_diff) < TILE_SIZE * 0.1 {
+						enemy.inst_velocity = 0
+					} else {
+						enemy.inst_velocity = linalg.normalize(spawn_diff) * enemy_speed
+					}
+				}
 				squish := f64(game.frame_counter + u64(enemy.pathfind_index)) / 6
 				enemy.display_transform.scale =
 					vec2{1, 1} + 0.05 * vec2{math.sin(squish), -math.sin(squish)}
@@ -871,6 +919,30 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("move enemies")
+	{it := hm.make_iter(&game.objects)
+		for e1, h1 in all_objects_with_variant(&it, Enemy) {
+			it_inner := it
+			for e2, h2 in all_objects_with_variant(&it_inner, Enemy) {
+				if h1 == h2 {continue}
+				if e1.state != .Alive_Active || e2.state != .Alive_Active {continue}
+				ENEMY_REPULSION_STRENGTH :: 150000 // why does it need to be so high? maybe cause length squared is enormous?
+				EPSILON_DIFF :: 0.01
+				diff := e1.position - e2.position
+				if diff == {0, 0} {
+					//prevent div by 0
+					diff = {EPSILON_DIFF, EPSILON_DIFF}
+				}
+				len2 := linalg.length2(diff)
+				MIN_LENGTH :: EPSILON_DIFF
+				MAX_LENGTH_FOR_REPULSION :: TILE_SIZE * 10
+				if len2 > MAX_LENGTH_FOR_REPULSION * MAX_LENGTH_FOR_REPULSION {continue}
+				if len2 < MIN_LENGTH * MIN_LENGTH {len2 = MIN_LENGTH} 	//prevent divide by almost zero yielding huge numbers
+				e1.inst_velocity += dt * diff * ENEMY_REPULSION_STRENGTH / len2
+				e2.inst_velocity -= dt * diff * ENEMY_REPULSION_STRENGTH / len2
+			}
+		}
+	}
+	timer->time("resolve enemy-enemy repulsion")
 	{it := hm.make_iter(&game.objects)
 		update_health_bar :: proc(h: Health) {
 			bar := get_object(h.health_bar, UIStatBar)
