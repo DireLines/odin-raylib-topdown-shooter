@@ -671,6 +671,7 @@ atomic_chair_update :: proc(dt: f64) {
 			player.state = .Dead
 			play_sound(get_sound("death.wav"))
 			play_sound(get_sound("death2.wav"))
+			player.hitbox.trigger_events = false
 		} else {
 			play_sound(get_sound("hit.wav"))
 		}
@@ -908,9 +909,9 @@ atomic_chair_update :: proc(dt: f64) {
 						enemy.inst_velocity = linalg.normalize(spawn_diff) * enemy_speed
 					}
 				}
-				squish := f64(game.frame_counter + u64(enemy.pathfind_index)) / 6
+				squish := f64(game.frame_counter + u64(enemy.pathfind_index)) / 4
 				enemy.display_transform.scale =
-					vec2{1, 1} + 0.05 * vec2{math.sin(squish), -math.sin(squish)}
+					vec2{1, 1} + 0.07 * vec2{math.sin(squish), -math.sin(squish)}
 			case .Dead:
 				hm.remove(&game.objects, h)
 				hm.remove(&game.objects, enemy.health_bar)
@@ -919,6 +920,33 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("move enemies")
+	{it := hm.make_iter(&game.objects)
+		for enemy, h in all_objects_with_variant(&it, Enemy) {
+			collisions, has_collisions := game.collisions[h]
+			if !has_collisions {continue}
+			for collision in collisions {
+				if collision.type == .stop {continue}
+				if other_handle, ok := collision.b.(GameObjectHandle); ok {
+					other, ok := hm.get(&game.objects, other_handle)
+					if !ok {continue} 	//e.g. deleted bullet
+					#partial switch other.hitbox.layer {
+					case .Enemy:
+						circle_jostle_resolve(h, other_handle)
+					case .Player:
+						knockback_vec :=
+							(other.position - enemy.position) * ENEMY_CONTACT_KNOCKBACK_STRENGTH
+						player := get_object(other, Player)
+						//take damage
+						//TODO have player enter temp invincible state
+						rl.PlaySound(get_sound("hit.wav"))
+						apply_knockback(knockback_vec, player)
+						player_take_damage(player)
+					}
+				}
+			}
+		}
+	}
+	timer->time("resolve enemy collisions")
 	{it := hm.make_iter(&game.objects)
 		for e1, h1 in all_objects_with_variant(&it, Enemy) {
 			it_inner := it
@@ -1356,5 +1384,65 @@ game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
 	it := hm.make_iter(&game.objects)
 	for obj, h in all_objects_with_variant(&it, UIStatBar) {
 		obj.draw = draw_ui_stat_bar
+	}
+}
+
+
+obj_to_circle :: proc(h: GameObjectHandle) -> Circle {
+	obj := hm.get(&game.objects, h)
+	circle: Circle
+	switch shape in obj.hitbox.shape {
+	case AABB:
+		circle = {
+			pos    = local_to_world(h, obj.pivot),
+			radius = aabb_to_rect(shape).width / 2,
+		}
+	case Circle:
+		circle = shape
+	}
+	return circle
+}
+
+
+//enforce circles do not penetrate by adding to velocity
+circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
+	a_h, b_h := a, b
+	a_c, b_c := obj_to_circle(a), obj_to_circle(b)
+	if a_c.radius < b_c.radius {
+		a_h, b_h = b, a
+		a_c, b_c = b_c, a_c
+	}
+	assert(a_c.radius >= b_c.radius)
+	diff := b_c.pos - a_c.pos
+	if diff == {0, 0} {
+		epsilon :: 0.0001
+		diff.x += epsilon
+	}
+	dist := linalg.length(diff)
+	sum_radii := abs(a_c.radius) + abs(b_c.radius)
+	if sum_radii == 0 { 	//degenerate case - avoid div by zero
+		return
+	}
+	overlap := sum_radii - dist
+	if overlap <= 0 { 	//circles do not overlap
+		return
+	}
+	diff_unit := linalg.normalize(diff)
+	overlap_start := a_c.pos + diff_unit * b_c.radius
+	overlap_end := overlap_start + diff_unit * overlap
+	//assuming objects are equal density rigidbodies, correct resolution is to put them at a distance proportional to their radii along the overlap
+	point_of_touch := math.lerp(overlap_start, overlap_end, (a_c.radius / sum_radii))
+	//TODO(dry): helper function
+	{
+		c_new_pos := point_of_touch - diff_unit * a_c.radius
+		pos_diff := c_new_pos - a_c.pos
+		obj, ok := hm.get(&game.objects, a_h)
+		obj.inst_velocity += -pos_diff
+	}
+	{
+		c_new_pos := point_of_touch - diff_unit * b_c.radius
+		pos_diff := c_new_pos - b_c.pos
+		obj, ok := hm.get(&game.objects, b_h)
+		obj.inst_velocity += -pos_diff
 	}
 }
