@@ -671,7 +671,6 @@ atomic_chair_update :: proc(dt: f64) {
 			player.state = .Dead
 			play_sound(get_sound("death.wav"))
 			play_sound(get_sound("death2.wav"))
-			player.hitbox.trigger_events = false
 		} else {
 			play_sound(get_sound("hit.wav"))
 		}
@@ -936,11 +935,13 @@ atomic_chair_update :: proc(dt: f64) {
 						knockback_vec :=
 							(other.position - enemy.position) * ENEMY_CONTACT_KNOCKBACK_STRENGTH
 						player := get_object(other, Player)
-						//take damage
-						//TODO have player enter temp invincible state
-						rl.PlaySound(get_sound("hit.wav"))
-						apply_knockback(knockback_vec, player)
-						player_take_damage(player)
+						if player.state == .Alive {
+							//take damage
+							//TODO have player enter temp invincible state
+							rl.PlaySound(get_sound("hit.wav"))
+							apply_knockback(knockback_vec, player)
+							player_take_damage(player)
+						}
 					}
 				}
 			}
