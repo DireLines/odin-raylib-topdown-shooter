@@ -860,8 +860,9 @@ atomic_chair_update :: proc(dt: f64) {
 				}
 			case .Alive_Active:
 				//TODO enemy behavior
+				squish := f64(game.frame_counter + u64(enemy.pathfind_index)) / 6
 				enemy.display_transform.scale =
-					vec2{1, 1} + 0.05 * math.sin(f64(game.frame_counter) / 5)
+					vec2{1, 1} + 0.05 * vec2{math.sin(squish), -math.sin(squish)}
 			case .Dead:
 				hm.remove(&game.objects, h)
 				hm.remove(&game.objects, enemy.health_bar)
