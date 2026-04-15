@@ -45,31 +45,20 @@ pixel_filter_ex :: proc() {
 	tex := rl.LoadTexture("cat_test.png")
 	rl.SetTextureFilter(tex, .BILINEAR)
 	filter := rl.LoadShaderFromMemory(nil, cstring(PIXEL_FILTER_SHADER))
-	zoom_uniform := rl.GetShaderLocation(filter, "zoom")
 
 	r: f32 = 0
 	for !rl.WindowShouldClose() {
 		r += rl.GetFrameTime() * 10
 		if rl.IsKeyPressed(.F4) {
 			filter = rl.LoadShader(nil, "pixel_filter.fs")
-			zoom_uniform = rl.GetShaderLocation(filter, "zoom")
 		}
 		zoom := (math.cos(f32(rl.GetTime() / 16)) + 2) * 20
-		rl.SetShaderValue(filter, rl.ShaderLocationIndex(zoom_uniform), &zoom, .FLOAT)
-		cam := rl.Camera2D {
-			target = rl.Vector2{math.cos(f32(rl.GetTime())), math.sin(f32(rl.GetTime()))} * 0.01,
-			zoom   = zoom,
-			offset = rl.Vector2{1280 / 2, 1280 / 2},
-			// rotation = r
-		}
 		rl.BeginDrawing()
 		rl.BeginShaderMode(filter)
-		rl.BeginMode2D(cam)
 		rl.BeginBlendMode(.ALPHA_PREMULTIPLY)
 		rl.ClearBackground({110, 184, 168, 255})
 		rl.DrawTexture(tex, -8, -8, rl.WHITE)
 		rl.EndBlendMode()
-		rl.EndMode2D()
 		rl.EndShaderMode()
 	}
 	rl.EndDrawing()

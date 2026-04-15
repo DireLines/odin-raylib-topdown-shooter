@@ -1,7 +1,6 @@
 #version 330
 in vec2 fragTexCoord; 
 uniform sampler2D texture0;
-uniform float zoom;
 out vec4 finalColor;
 
 vec2 uv_klems (vec2 uv, vec2 texture_size ) {
