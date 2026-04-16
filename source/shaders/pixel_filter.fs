@@ -1,4 +1,7 @@
-#version 330
+//version tag will be prepended at runtime since it varies depending on build target
+#ifdef GL_ES
+precision mediump float;
+#endif
 in vec2 fragTexCoord; 
 uniform sampler2D texture0;
 out vec4 finalColor;
@@ -6,7 +9,7 @@ out vec4 finalColor;
 vec2 uv_klems (vec2 uv, vec2 texture_size ) {
     vec2 pixels = uv * texture_size + 0.5;
     // tweak fractional value of the texture coordinate
-    vec2 fl = floor (pixels);
+    vec2 fl = floor(pixels);
     vec2 fr = fract(pixels);
     vec2 aa = fwidth(pixels) * 0.75;
     fr = smoothstep( vec2(0.5) - aa, vec2(0.5) + aa,fr);

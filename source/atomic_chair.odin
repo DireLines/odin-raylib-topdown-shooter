@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
+import "core:slice"
 import hm "handle_map_static"
 import maps "mapgen"
 import rl "vendor:raylib"
@@ -13,7 +14,7 @@ import rl "vendor:raylib"
 GAME_NAME :: "atomic chair"
 MENU_BUTTON_SPACING :: 0.15
 MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
-BEE_YELLOW :: rl.Color{246, 208, 58, 255}
+PLAYER_MAIN_COLOR :: rl.Color{99, 155, 255, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
 STAT_BAR_UNFILLED_TICK_COLOR :: rl.Color{50, 50, 50, 255}
@@ -78,10 +79,13 @@ EnemyState :: enum {
 	Alive_Active,
 	Dead,
 }
-
 Health :: struct {
 	health, max_health: int,
 	health_bar:         GameObjectHandle,
+}
+Invuln :: struct {
+	invulnerable:                           bool,
+	invuln_cooldown, invuln_time_remaining: f64,
 }
 
 //object variants
@@ -93,6 +97,7 @@ Health :: struct {
 //so Enemy and Collectible can be two variants in the union
 Player :: struct {
 	using health_info:  Health,
+	using invuln:       Invuln,
 	state:              AliveDeadState,
 	score:              int,
 	score_label_handle: GameObjectHandle,
@@ -279,7 +284,7 @@ MenuState :: enum {
 game_start :: proc() {
 	game.color_to_tiletype[rl.BLACK] = .Wall
 	game.color_to_tiletype[FLOOR_MAP_COLOR] = .None
-	game.color_to_spawn[BEE_YELLOW] = .Player
+	game.color_to_spawn[PLAYER_MAIN_COLOR] = .Player
 	game.color_to_spawn[BASIC_ENEMY_COLOR] = .Enemy
 	load_map :: proc() -> (tilemap: Tilemap, player_spawn: TilemapTileId) {
 		MAP_DATA :: #load("map.png")
@@ -311,17 +316,17 @@ game_start :: proc() {
 main_menu_start :: proc() {
 	game.paused = true
 	//spawn buttons
-	titlebar_tex := atlas_textures[.Earshot_Title]
-	sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 400
-	titlebar := spawn_object(
+	titlebar_tex := atlas_textures[.Atomic_Chair_Title]
+	sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
+	titlebar_handle := spawn_object(
 	GameObject {
 		transform = {
 			position = MENU_SCREEN_DIMS * {0.5, 0.1},
-			pivot    = {125 / sc.x * 2, 0}, //TODO it *SHOULD* be half the texture width, why is it this?
+			pivot    = {60, 28.25}, //TODO it *SHOULD* be half the texture width, why is it this?
 			scale    = sc,
 		},
 		parent_handle = game.screen_space_parent_handle,
-		texture = atlas_textures[.Earshot_Title],
+		texture = titlebar_tex,
 		render_layer = uint(RenderLayer.UI),
 		color = rl.WHITE,
 		tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
@@ -345,7 +350,7 @@ main_menu_start :: proc() {
 	//volume sliders
 	slider_handles := spawn_vol_sliders()
 	//TODO credits button
-	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar}
+	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar_handle}
 	for h in slider_handles {
 		append(&main_menu_objects, h)
 	}
@@ -399,11 +404,11 @@ handle_ui_buttons :: proc() {
 		button.scale *= 1 + (scale_target - button.scale) * 0.1
 		// clicking := hovering && rl.IsMouseButtonDown(.LEFT)
 		if hovering {
-			button.color = BEE_YELLOW
+			button.color = PLAYER_MAIN_COLOR
 			button.text_color = rl.BLACK
 		} else {
 			button.color = rl.BLACK
-			button.text_color = BEE_YELLOW
+			button.text_color = PLAYER_MAIN_COLOR
 		}
 		click_started := hovering && rl.IsMouseButtonPressed(.LEFT)
 		if click_started && button.on_click_start != nil {
@@ -480,7 +485,7 @@ spawn_player :: proc() -> GameObjectHandle {
 		},
 		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
 		tags = {.Player, .Collide, .Sprite},
-		variant = Player{health = 6, max_health = 6, state = .Alive},
+		variant = Player{health = 6, max_health = 6, state = .Alive, invuln_cooldown = 1.0},
 	}
 	player_handle := spawn_object(player_def)
 	player := get_object(player_handle, Player)
@@ -497,7 +502,7 @@ spawn_player :: proc() -> GameObjectHandle {
 				render_layer = uint(RenderLayer.UI),
 				text_render_info = {
 					font_size = UI_SECONDARY_FONT_SIZE,
-					text_color = BEE_YELLOW,
+					text_color = PLAYER_MAIN_COLOR,
 					text_alignment = .Left,
 				},
 			},
@@ -664,6 +669,7 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	timer->time("load chunks")
 	player_take_damage :: proc(player: GameObjectInst(Player)) {
+		if player.invulnerable {return}
 		player.health -= 1
 		//did we just die?
 		if player.health <= 0 {
@@ -672,6 +678,8 @@ atomic_chair_update :: proc(dt: f64) {
 			play_sound(get_sound("death2.wav"))
 		} else {
 			play_sound(get_sound("hit.wav"))
+			player.invulnerable = true
+			player.invuln_time_remaining = player.invuln_cooldown
 		}
 	}
 	//player movement
@@ -717,8 +725,17 @@ atomic_chair_update :: proc(dt: f64) {
 				make_animation(desired_anim_name, desired_anim_speed),
 			)
 		}
-		if rl.IsKeyPressed(.R) {
-			player_take_damage(get_object(player, Player))
+		if player.invulnerable {
+			player.invuln_time_remaining -= dt
+			if int(f64(game.frame_counter) / 4) % 2 == 0 {
+				player.shader = .SolidColor
+			} else {
+				player.shader = .None
+			}
+			if player.invuln_time_remaining <= 0 {
+				player.invulnerable = false
+				player.shader = .None
+			}
 		}
 		if desired_anim_name != .Squatman_Idle {
 			player.display_transform = Transform {
@@ -730,6 +747,8 @@ atomic_chair_update :: proc(dt: f64) {
 			}
 		} else {
 			player.display_transform = {}
+			squish := f64(game.frame_counter) / 8
+			player.display_transform.scale = {1, 1} + 0.02 * {math.sin(squish), -math.sin(squish)}
 		}
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
@@ -859,9 +878,57 @@ atomic_chair_update :: proc(dt: f64) {
 					enemy.state = .Alive_Active
 				}
 			case .Alive_Active:
-				//TODO enemy behavior
+				if uint(game.frame_counter) %% PATHFINDING_UPDATE_INTERVAL ==
+				   enemy.pathfind_index {
+					delete(enemy.path)
+					enemy.path = TilePath(
+						slice.clone(get_a_star_path(enemy.position, player.position)),
+					)
+				}
+				sees_player := has_line_of_sight(enemy.position, player.position)
+				line_color := sees_player ? set_alpha(rl.GREEN, 100) : set_alpha(rl.RED, 100)
+				// for i in 0 ..< len(enemy.path) - 1 {
+				// 	draw_debug_line(
+				// 		get_tile_center(enemy.path[i]),
+				// 		get_tile_center(enemy.path[i + 1]),
+				// 		5,
+				// 		line_color,
+				// 	)
+				// }
+				player_sense_distance :: TILE_SIZE * 50
+				target: vec2 = player.position
+				// print_line_of_sight( enemy.position, player.position)
+				if !sees_player && len(enemy.path) > 0 {
+					epsilon :: 0.00001
+					target = get_farthest_visible_point_in_path(
+						enemy.position + epsilon,
+						enemy.path,
+					)
+					// draw_debug_circle(target, color = set_alpha(rl.BLUE, 100), filled = false)
+				}
+				player_diff := player.position - enemy.position
+				target_diff := target - enemy.position
+				enemy_speed :: 300
+				dist_to_player := linalg.length(player_diff)
+				if dist_to_player > activate_distance {
+					enemy.state = .Alive_Inactive
+				} else if dist_to_player < player_sense_distance {
+					if linalg.length(target_diff) < TILE_SIZE * 0.1 {
+						enemy.inst_velocity = 0
+					} else {
+						enemy.inst_velocity = linalg.normalize(target_diff) * enemy_speed
+					}
+				} else {
+					spawn_diff := enemy.spawn_point - enemy.position
+					if linalg.length(spawn_diff) < TILE_SIZE * 0.1 {
+						enemy.inst_velocity = 0
+					} else {
+						enemy.inst_velocity = linalg.normalize(spawn_diff) * enemy_speed
+					}
+				}
+				squish := f64(game.frame_counter + u64(enemy.pathfind_index)) / 4
 				enemy.display_transform.scale =
-					vec2{1, 1} + 0.05 * math.sin(f64(game.frame_counter) / 5)
+					vec2{1, 1} + 0.07 * vec2{math.sin(squish), -math.sin(squish)}
 			case .Dead:
 				hm.remove(&game.objects, h)
 				hm.remove(&game.objects, enemy.health_bar)
@@ -870,6 +937,59 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("move enemies")
+	{it := hm.make_iter(&game.objects)
+		for enemy, h in all_objects_with_variant(&it, Enemy) {
+			collisions, has_collisions := game.collisions[h]
+			if !has_collisions {continue}
+			for collision in collisions {
+				if collision.type == .stop {continue}
+				if other_handle, ok := collision.b.(GameObjectHandle); ok {
+					other, ok := hm.get(&game.objects, other_handle)
+					if !ok {continue} 	//e.g. deleted bullet
+					#partial switch other.hitbox.layer {
+					case .Enemy:
+						circle_jostle_resolve(h, other_handle)
+					case .Player:
+						knockback_vec :=
+							(other.position - enemy.position) * ENEMY_CONTACT_KNOCKBACK_STRENGTH
+						player := get_object(other, Player)
+						if player.state == .Alive {
+							//take damage
+							//TODO have player enter temp invincible state
+							rl.PlaySound(get_sound("hit.wav"))
+							apply_knockback(knockback_vec, player)
+							player_take_damage(player)
+						}
+					}
+				}
+			}
+		}
+	}
+	timer->time("resolve enemy collisions")
+	{it := hm.make_iter(&game.objects)
+		for e1, h1 in all_objects_with_variant(&it, Enemy) {
+			it_inner := it
+			for e2, h2 in all_objects_with_variant(&it_inner, Enemy) {
+				if h1 == h2 {continue}
+				if e1.state != .Alive_Active || e2.state != .Alive_Active {continue}
+				ENEMY_REPULSION_STRENGTH :: 150000 // why does it need to be so high? maybe cause length squared is enormous?
+				EPSILON_DIFF :: 0.01
+				diff := e1.position - e2.position
+				if diff == {0, 0} {
+					//prevent div by 0
+					diff = {EPSILON_DIFF, EPSILON_DIFF}
+				}
+				len2 := linalg.length2(diff)
+				MIN_LENGTH :: EPSILON_DIFF
+				MAX_LENGTH_FOR_REPULSION :: TILE_SIZE * 10
+				if len2 > MAX_LENGTH_FOR_REPULSION * MAX_LENGTH_FOR_REPULSION {continue}
+				if len2 < MIN_LENGTH * MIN_LENGTH {len2 = MIN_LENGTH} 	//prevent divide by almost zero yielding huge numbers
+				e1.inst_velocity += dt * diff * ENEMY_REPULSION_STRENGTH / len2
+				e2.inst_velocity -= dt * diff * ENEMY_REPULSION_STRENGTH / len2
+			}
+		}
+	}
+	timer->time("resolve enemy-enemy repulsion")
 	{it := hm.make_iter(&game.objects)
 		update_health_bar :: proc(h: Health) {
 			bar := get_object(h.health_bar, UIStatBar)
@@ -1105,7 +1225,7 @@ spawn_ui_slider :: proc(
 			color = rl.WHITE,
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {
-				text_color = BEE_YELLOW,
+				text_color = PLAYER_MAIN_COLOR,
 				text_alignment = .Right,
 				font_size = UI_MAIN_FONT_SIZE,
 			},
@@ -1283,5 +1403,65 @@ game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
 	it := hm.make_iter(&game.objects)
 	for obj, h in all_objects_with_variant(&it, UIStatBar) {
 		obj.draw = draw_ui_stat_bar
+	}
+}
+
+
+obj_to_circle :: proc(h: GameObjectHandle) -> Circle {
+	obj := hm.get(&game.objects, h)
+	circle: Circle
+	switch shape in obj.hitbox.shape {
+	case AABB:
+		circle = {
+			pos    = local_to_world(h, obj.pivot),
+			radius = aabb_to_rect(shape).width / 2,
+		}
+	case Circle:
+		circle = shape
+	}
+	return circle
+}
+
+
+//enforce circles do not penetrate by adding to velocity
+circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
+	a_h, b_h := a, b
+	a_c, b_c := obj_to_circle(a), obj_to_circle(b)
+	if a_c.radius < b_c.radius {
+		a_h, b_h = b, a
+		a_c, b_c = b_c, a_c
+	}
+	assert(a_c.radius >= b_c.radius)
+	diff := b_c.pos - a_c.pos
+	if diff == {0, 0} {
+		epsilon :: 0.0001
+		diff.x += epsilon
+	}
+	dist := linalg.length(diff)
+	sum_radii := abs(a_c.radius) + abs(b_c.radius)
+	if sum_radii == 0 { 	//degenerate case - avoid div by zero
+		return
+	}
+	overlap := sum_radii - dist
+	if overlap <= 0 { 	//circles do not overlap
+		return
+	}
+	diff_unit := linalg.normalize(diff)
+	overlap_start := a_c.pos + diff_unit * b_c.radius
+	overlap_end := overlap_start + diff_unit * overlap
+	//assuming objects are equal density rigidbodies, correct resolution is to put them at a distance proportional to their radii along the overlap
+	point_of_touch := math.lerp(overlap_start, overlap_end, (a_c.radius / sum_radii))
+	//TODO(dry): helper function
+	{
+		c_new_pos := point_of_touch - diff_unit * a_c.radius
+		pos_diff := c_new_pos - a_c.pos
+		obj, ok := hm.get(&game.objects, a_h)
+		obj.inst_velocity += -pos_diff
+	}
+	{
+		c_new_pos := point_of_touch - diff_unit * b_c.radius
+		pos_diff := c_new_pos - b_c.pos
+		obj, ok := hm.get(&game.objects, b_h)
+		obj.inst_velocity += -pos_diff
 	}
 }

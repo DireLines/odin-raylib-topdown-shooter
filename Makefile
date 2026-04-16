@@ -83,6 +83,7 @@ web: #build for web using emscripten
 	@export EMSDK_QUIET=1; \
 	[ -f "$(EMSCRIPTEN_SDK_DIR)/emsdk_env.sh" ] && . "$(EMSCRIPTEN_SDK_DIR)/emsdk_env.sh"; \
 	odin build source/main_web -o:speed -target:js_wasm32 -build-mode:obj \
+		-define:glsl_version="300 es" \
 		-define:RAYLIB_WASM_LIB=env.o -define:RAYGUI_WASM_LIB=env.o \
 		-strict-style -out:$(WEB_DIR)/game.wasm.o; \
 	cp $(ODIN_ROOT)/core/sys/wasm/js/odin.js $(WEB_DIR); \
@@ -92,6 +93,7 @@ web: #build for web using emscripten
 		$(ODIN_ROOT)/vendor/raylib/wasm/libraygui.a \
 		-sUSE_GLFW=3 -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sASSERTIONS \
 		-sINITIAL_HEAP=2147483648 '-sEXPORTED_RUNTIME_METHODS=["HEAPF32"]' \
+		-sMAX_WEBGL_VERSION=2 \
 		--shell-file source/main_web/index_template.html; \
 	rm $(WEB_DIR)/game.wasm.o; \
 	echo "Web build created in $(WEB_DIR)"
