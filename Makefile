@@ -92,6 +92,7 @@ web: #build for web using emscripten
 		$(ODIN_ROOT)/vendor/raylib/wasm/libraygui.a \
 		-sUSE_GLFW=3 -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sASSERTIONS \
 		-sINITIAL_HEAP=2147483648 '-sEXPORTED_RUNTIME_METHODS=["HEAPF32"]' \
+		-sMAX_WEBGL_VERSION=2 \
 		--shell-file source/main_web/index_template.html; \
 	rm $(WEB_DIR)/game.wasm.o; \
 	echo "Web build created in $(WEB_DIR)"
