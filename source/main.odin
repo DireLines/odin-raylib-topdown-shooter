@@ -95,6 +95,10 @@ rl_rect_to_rect :: proc(r: rl.Rectangle) -> Rect {
 	return {x = f64(r.x), y = f64(r.y), width = f64(r.width), height = f64(r.height)}
 }
 
+ShaderInfo :: struct {
+	shader:     rl.Shader,
+	blend_mode: Maybe(rl.BlendMode),
+}
 
 Game :: struct {
 	objects:                    GameObjects,
@@ -104,7 +108,7 @@ Game :: struct {
 	render_layers:              [NUM_RENDER_LAYERS][dynamic]GameObjectHandle, // determines order in which objects are drawn to screen; rebuilt on load
 	textures:                   map[string]rl.Texture,
 	sounds:                     map[string]rl.Sound,
-	shaders:                    [ShaderName]rl.Shader,
+	shaders:                    [ShaderName]ShaderInfo,
 	fonts:                      map[FontName]rl.Font,
 	using frame:                ^GameFrameData,
 	prev_frame:                 ^GameFrameData,
@@ -232,11 +236,14 @@ game_init_raylib :: proc(game: ^Game) {
 	)
 	shade_uniform_loc := rl.GetShaderLocation(solid_color_shader, "shade")
 	rl.SetShaderValue(solid_color_shader, shade_uniform_loc, &[3]f32{1, 1, 1}, .VEC3) //solid white
-	game.shaders[.SolidColor] = solid_color_shader
-	game.shaders[.PixelFilter] = rl.LoadShaderFromMemory(
-		nil,
-		strings.clone_to_cstring(prepend_version_tag(PIXEL_FILTER_SHADER)),
-	)
+	game.shaders[.SolidColor] = {solid_color_shader, .ALPHA}
+	game.shaders[.PixelFilter] = {
+		rl.LoadShaderFromMemory(
+			nil,
+			strings.clone_to_cstring(prepend_version_tag(PIXEL_FILTER_SHADER)),
+		),
+		.ALPHA_PREMULTIPLY,
+	}
 
 	// Load atlas from ATLAS_DATA, which was stored in the executable at compile-time.
 	atlas_image := rl.LoadImageFromMemory(".png", raw_data(ATLAS_DATA), i32(len(ATLAS_DATA)))

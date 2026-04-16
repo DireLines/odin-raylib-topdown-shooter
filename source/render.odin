@@ -205,10 +205,10 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 	}
 	parent_handle, has_parent := obj.parent_handle.?
 	if .Sprite in obj.tags {
-		texture := atlas_bilinear
-		// if obj.shader == .PixelFilter || (DEFAULT_SHADER == .PixelFilter && obj.shader == .None) {
-		// 	texture = atlas_bilinear
-		// }
+		texture := atlas
+		if obj.shader == .PixelFilter || (DEFAULT_SHADER == .PixelFilter && obj.shader == .None) {
+			texture = atlas_bilinear
+		}
 		source := obj.texture.rect
 		if obj.include_transparent_border {
 			offset := vec2{f64(obj.texture.offset_left), f64(obj.texture.offset_top)}
@@ -462,24 +462,26 @@ render :: proc() {
 	//insert tilemap tiles into the render layers
 	//draw using raylib
 	rl.BeginDrawing(); defer rl.EndDrawing()
-	rl.BeginBlendMode(.ALPHA_PREMULTIPLY); defer rl.EndBlendMode()
 
 	// darkgray := rl.Color{32, 32, 30, 255}
 	rl.ClearBackground(rl.BLACK)
 	curr_shader_name: ShaderName //tracking this to know when to switch shader modes, which is expensive
 	change_shader :: proc(s: ShaderName, curr: ^ShaderName) {
+		if curr^ == s {return}
+		//both the default shader name and .None refer to the same shader
 		is_default :: proc(s: ShaderName) -> bool {
 			return s == DEFAULT_SHADER || s == .None
 		}
-		if curr^ == s {return}
 		if is_default(curr^) && is_default(s) {return}
 		if curr^ != .None {
 			rl.EndShaderMode()
 		}
 		if s != .None {
-			rl.BeginShaderMode(game.shaders[s])
+			shader := game.shaders[s]
+			rl.BeginShaderMode(shader.shader)
 		} else {
-			rl.BeginShaderMode(game.shaders[DEFAULT_SHADER])
+			shader := game.shaders[DEFAULT_SHADER]
+			rl.BeginShaderMode(shader.shader)
 		}
 		curr^ = s
 	}
