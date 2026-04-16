@@ -727,7 +727,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 		if player.invulnerable {
 			player.invuln_time_remaining -= dt
-			if int(f64(game.frame_counter) / 5) % 2 == 0 {
+			if int(f64(game.frame_counter) / 4) % 2 == 0 {
 				player.shader = .SolidColor
 			} else {
 				player.shader = .None
@@ -747,6 +747,8 @@ atomic_chair_update :: proc(dt: f64) {
 			}
 		} else {
 			player.display_transform = {}
+			squish := f64(game.frame_counter) / 8
+			player.display_transform.scale = {1, 1} + 0.02 * {math.sin(squish), -math.sin(squish)}
 		}
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
