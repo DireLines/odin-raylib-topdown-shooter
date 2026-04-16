@@ -14,7 +14,7 @@ import rl "vendor:raylib"
 GAME_NAME :: "atomic chair"
 MENU_BUTTON_SPACING :: 0.15
 MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
-BEE_YELLOW :: rl.Color{246, 208, 58, 255}
+PLAYER_MAIN_COLOR :: rl.Color{99, 155, 255, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
 STAT_BAR_UNFILLED_TICK_COLOR :: rl.Color{50, 50, 50, 255}
@@ -280,7 +280,7 @@ MenuState :: enum {
 game_start :: proc() {
 	game.color_to_tiletype[rl.BLACK] = .Wall
 	game.color_to_tiletype[FLOOR_MAP_COLOR] = .None
-	game.color_to_spawn[BEE_YELLOW] = .Player
+	game.color_to_spawn[PLAYER_MAIN_COLOR] = .Player
 	game.color_to_spawn[BASIC_ENEMY_COLOR] = .Enemy
 	load_map :: proc() -> (tilemap: Tilemap, player_spawn: TilemapTileId) {
 		MAP_DATA :: #load("map.png")
@@ -312,17 +312,17 @@ game_start :: proc() {
 main_menu_start :: proc() {
 	game.paused = true
 	//spawn buttons
-	titlebar_tex := atlas_textures[.Earshot_Title]
-	sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 400
-	titlebar := spawn_object(
+	titlebar_tex := atlas_textures[.Atomic_Chair_Title]
+	sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
+	titlebar_handle := spawn_object(
 	GameObject {
 		transform = {
 			position = MENU_SCREEN_DIMS * {0.5, 0.1},
-			pivot    = {125 / sc.x * 2, 0}, //TODO it *SHOULD* be half the texture width, why is it this?
+			pivot    = {60, 28.25}, //TODO it *SHOULD* be half the texture width, why is it this?
 			scale    = sc,
 		},
 		parent_handle = game.screen_space_parent_handle,
-		texture = atlas_textures[.Earshot_Title],
+		texture = titlebar_tex,
 		render_layer = uint(RenderLayer.UI),
 		color = rl.WHITE,
 		tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
@@ -346,7 +346,7 @@ main_menu_start :: proc() {
 	//volume sliders
 	slider_handles := spawn_vol_sliders()
 	//TODO credits button
-	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar}
+	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar_handle}
 	for h in slider_handles {
 		append(&main_menu_objects, h)
 	}
@@ -400,11 +400,11 @@ handle_ui_buttons :: proc() {
 		button.scale *= 1 + (scale_target - button.scale) * 0.1
 		// clicking := hovering && rl.IsMouseButtonDown(.LEFT)
 		if hovering {
-			button.color = BEE_YELLOW
+			button.color = PLAYER_MAIN_COLOR
 			button.text_color = rl.BLACK
 		} else {
 			button.color = rl.BLACK
-			button.text_color = BEE_YELLOW
+			button.text_color = PLAYER_MAIN_COLOR
 		}
 		click_started := hovering && rl.IsMouseButtonPressed(.LEFT)
 		if click_started && button.on_click_start != nil {
@@ -498,7 +498,7 @@ spawn_player :: proc() -> GameObjectHandle {
 				render_layer = uint(RenderLayer.UI),
 				text_render_info = {
 					font_size = UI_SECONDARY_FONT_SIZE,
-					text_color = BEE_YELLOW,
+					text_color = PLAYER_MAIN_COLOR,
 					text_alignment = .Left,
 				},
 			},
@@ -1207,7 +1207,7 @@ spawn_ui_slider :: proc(
 			color = rl.WHITE,
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {
-				text_color = BEE_YELLOW,
+				text_color = PLAYER_MAIN_COLOR,
 				text_alignment = .Right,
 				font_size = UI_MAIN_FONT_SIZE,
 			},
