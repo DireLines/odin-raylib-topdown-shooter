@@ -2,6 +2,7 @@ package game
 import "core:fmt"
 import "core:math"
 import "core:reflect"
+import "core:strings"
 import "core:time"
 import hm "handle_map_static"
 import rb "ring_buffer"
@@ -83,8 +84,8 @@ ATLAS_DATA :: #load("atlas.png")
 // This is loaded in `main` from `ATLAS_DATA`
 atlas: rl.Texture
 
-PIXEL_FILTER_SHADER :: #load("shaders/pixel_filter.fs", cstring)
-SOLID_COLOR_SHADER :: #load("shaders/solid_color.fs", cstring)
+PIXEL_FILTER_SHADER :: #load("shaders/pixel_filter.fs", string)
+SOLID_COLOR_SHADER :: #load("shaders/solid_color.fs", string)
 
 print :: fmt.println
 
@@ -229,13 +230,24 @@ game_init_mem :: proc(game: ^Game) {
 		//TODO this assumes tile textures are 128x128
 	}
 }
+
+GLSL_VERSION :: #config(glsl_version, "330")
+prepend_version_tag :: proc(code: string) -> string {
+	return strings.concatenate({"#version ", GLSL_VERSION, "\n", code})
+}
 game_init_raylib :: proc(game: ^Game) {
 	//load shaders
-	solid_color_shader := rl.LoadShaderFromMemory(nil, cstring(SOLID_COLOR_SHADER))
+	solid_color_shader := rl.LoadShaderFromMemory(
+		nil,
+		strings.clone_to_cstring(prepend_version_tag(SOLID_COLOR_SHADER)),
+	)
 	shade_uniform_loc := rl.GetShaderLocation(solid_color_shader, "shade")
 	rl.SetShaderValue(solid_color_shader, shade_uniform_loc, &[3]f32{1, 1, 1}, .VEC3) //solid white
 	game.shaders[.SolidColor] = solid_color_shader
-	game.shaders[.PixelFilter] = rl.LoadShaderFromMemory(nil, cstring(PIXEL_FILTER_SHADER))
+	game.shaders[.PixelFilter] = rl.LoadShaderFromMemory(
+		nil,
+		strings.clone_to_cstring(prepend_version_tag(PIXEL_FILTER_SHADER)),
+	)
 
 	// Load atlas from ATLAS_DATA, which was stored in the executable at compile-time.
 	atlas_image := rl.LoadImageFromMemory(".png", raw_data(ATLAS_DATA), i32(len(ATLAS_DATA)))
