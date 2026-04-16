@@ -79,10 +79,13 @@ EnemyState :: enum {
 	Alive_Active,
 	Dead,
 }
-
 Health :: struct {
 	health, max_health: int,
 	health_bar:         GameObjectHandle,
+}
+Invuln :: struct {
+	invulnerable:                           bool,
+	invuln_cooldown, invuln_time_remaining: f64,
 }
 
 //object variants
@@ -94,6 +97,7 @@ Health :: struct {
 //so Enemy and Collectible can be two variants in the union
 Player :: struct {
 	using health_info:  Health,
+	using invuln:       Invuln,
 	state:              AliveDeadState,
 	score:              int,
 	score_label_handle: GameObjectHandle,
@@ -481,7 +485,7 @@ spawn_player :: proc() -> GameObjectHandle {
 		},
 		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
 		tags = {.Player, .Collide, .Sprite},
-		variant = Player{health = 6, max_health = 6, state = .Alive},
+		variant = Player{health = 6, max_health = 6, state = .Alive, invuln_cooldown = 1.0},
 	}
 	player_handle := spawn_object(player_def)
 	player := get_object(player_handle, Player)
@@ -665,6 +669,7 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	timer->time("load chunks")
 	player_take_damage :: proc(player: GameObjectInst(Player)) {
+		if player.invulnerable {return}
 		player.health -= 1
 		//did we just die?
 		if player.health <= 0 {
@@ -673,6 +678,8 @@ atomic_chair_update :: proc(dt: f64) {
 			play_sound(get_sound("death2.wav"))
 		} else {
 			play_sound(get_sound("hit.wav"))
+			player.invulnerable = true
+			player.invuln_time_remaining = player.invuln_cooldown
 		}
 	}
 	//player movement
@@ -718,8 +725,17 @@ atomic_chair_update :: proc(dt: f64) {
 				make_animation(desired_anim_name, desired_anim_speed),
 			)
 		}
-		if rl.IsKeyPressed(.R) {
-			player_take_damage(get_object(player, Player))
+		if player.invulnerable {
+			player.invuln_time_remaining -= dt
+			if int(f64(game.frame_counter) / 5) % 2 == 0 {
+				player.shader = .SolidColor
+			} else {
+				player.shader = .None
+			}
+			if player.invuln_time_remaining <= 0 {
+				player.invulnerable = false
+				player.shader = .None
+			}
 		}
 		if desired_anim_name != .Squatman_Idle {
 			player.display_transform = Transform {
