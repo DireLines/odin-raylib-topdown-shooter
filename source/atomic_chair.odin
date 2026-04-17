@@ -17,6 +17,7 @@ MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
 PLAYER_MAIN_COLOR :: rl.Color{99, 155, 255, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
+CHECKPOINT_COLOR :: rl.Color{100, 200, 100, 255}
 STAT_BAR_UNFILLED_TICK_COLOR :: rl.Color{50, 50, 50, 255}
 //speeds in world units per second
 PLAYER_MAX_SPEED :: 40000
@@ -68,6 +69,13 @@ ObjectTag :: enum {
 	Enemy,
 }
 
+//types needed for tilemap
+SpawnType :: enum {
+	None,
+	Player,
+	Enemy,
+	Checkpoint,
+}
 
 //types needed in variants
 AliveDeadState :: enum {
@@ -286,10 +294,11 @@ game_start :: proc() {
 	game.color_to_tiletype[FLOOR_MAP_COLOR] = .None
 	game.color_to_spawn[PLAYER_MAIN_COLOR] = .Player
 	game.color_to_spawn[BASIC_ENEMY_COLOR] = .Enemy
+	game.color_to_spawn[CHECKPOINT_COLOR] = .Checkpoint
 	load_map :: proc() -> (tilemap: Tilemap, player_spawn: TilemapTileId) {
 		MAP_DATA :: #load("map.png")
 		tiles_img := rl.LoadImageFromMemory(".png", raw_data(MAP_DATA), i32(len(MAP_DATA)))
-		tiles_buf := maps.img_to_buf(tiles_img)
+		tiles_buf := maps.img_to_buf(tiles_img, transpose = true)
 		color_to_tile :: proc(c: rl.Color) -> Tile {
 			t := Tile{}
 			tiletype, ok := game.color_to_tiletype[c]
@@ -627,12 +636,15 @@ atomic_chair_update :: proc(dt: f64) {
 			min_corner, _ := get_tilemap_corners(chunk)
 			for i in 0 ..< CHUNK_WIDTH_TILES {
 				for j in 0 ..< CHUNK_HEIGHT_TILES {
-					if tilemap[i][j].spawn == .Enemy {
-						spawn_tile := min_corner + TilemapTileId{i, j}
+					spawn_tile := min_corner + TilemapTileId{i, j}
+					#partial switch tilemap[i][j].spawn {
+					case .Enemy:
 						for _ in 0 ..< 5 {
 							pos := random_point_in_tile(spawn_tile)
 							spawn_enemy(pos, .Basic)
 						}
+					case .Checkpoint:
+						spawn_checkpoint(get_tile_center(spawn_tile))
 					}
 				}
 			}
@@ -759,16 +771,12 @@ atomic_chair_update :: proc(dt: f64) {
 			bullet_diff := mouse_pos - player_center
 			bullet_velocity :=
 				linalg.normalize(bullet_diff) * PLAYER_BULLET_SPEED + player.velocity * 0.5
-			bullet_fired := false
 			firing_pos :=
 				player_center -
 				{0, 50} +
 				linalg.normalize(bullet_velocity) * PLAYER_BULLET_FIRING_POSITION_OFFSET
 			bullet_handle := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
-			if bullet_handle != nil {
-				bullet_fired = true
-				play_sound(get_sound("light-fire.wav"))
-			}
+			play_sound(get_sound("light-fire.wav"))
 		}
 		timer->time("spawn bullets")
 	case .Dead:
@@ -1097,7 +1105,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 	return enemy_handle
 }
 
-spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectHandle) {
+spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectHandle {
 	//shoot bullet
 	tex := atlas_textures[PLAYER_BULLET_TEXTURE]
 	tex_dims := vec2{tex.rect.width, tex.rect.height}
@@ -1116,8 +1124,7 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> Maybe(GameObjectH
 		tags = {.Bullet, .Collide, .Sprite},
 		variant = Bullet{nil, .Alive},
 	}
-	h := spawn_object(bullet)
-	return h
+	return spawn_object(bullet)
 }
 
 get_axis :: proc(key_neg, key_pos: rl.KeyboardKey) -> f64 {
@@ -1464,4 +1471,21 @@ circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
 		obj, ok := hm.get(&game.objects, b_h)
 		obj.inst_velocity += -pos_diff
 	}
+}
+
+spawn_checkpoint :: proc(pos: vec2) -> GameObjectHandle {
+	CHECKPOINT_SIZE :: vec2{TILE_SIZE * 2, TILE_SIZE * 2}
+	tex := atlas_textures[.White]
+	checkpoint := GameObject {
+		name = fmt.aprint("checkpoint"),
+		transform = {position = pos, scale = {2, 2}},
+		render_info = {
+			texture = tex,
+			color = set_alpha(rl.WHITE, 100),
+			render_layer = uint(RenderLayer.Ceiling),
+		},
+		hitbox = {shape = AABB{min = pos - CHECKPOINT_SIZE / 2, max = pos + CHECKPOINT_SIZE / 2}},
+		tags = {.Collide, .Sprite},
+	}
+	return spawn_object(checkpoint)
 }

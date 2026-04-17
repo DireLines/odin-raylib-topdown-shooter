@@ -6,11 +6,6 @@ import maps "mapgen"
 import rl "vendor:raylib"
 
 TilemapTileId :: distinct [2]int //TODO: TileId name is in use by atlas.odin, investigate the intended way to generate tilemaps there
-SpawnType :: enum {
-	None,
-	Player,
-	Enemy,
-}
 CardinalDirection :: enum {
 	North,
 	East,
@@ -81,8 +76,8 @@ unload_tilemap_chunk :: proc(id: ChunkId) {
 // Uses the temp allocator internally; the returned map uses the default allocator.
 get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 	visited := make(map[TilemapTileId]struct{}, allocator = context.temp_allocator)
-	queue   := make([dynamic]TilemapTileId,     allocator = context.temp_allocator)
-	chunks  := make(map[ChunkId]struct{})
+	queue := make([dynamic]TilemapTileId, allocator = context.temp_allocator)
+	chunks := make(map[ChunkId]struct{})
 
 	if get_tile(start_tile).type == .Wall {
 		return chunks
@@ -94,7 +89,7 @@ get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 	MAX_TILES :: 1000000
 	head := 0
 	for head < len(queue) {
-		if head >= MAX_TILES{
+		if head >= MAX_TILES {
 			print("hit tile limit")
 			break
 		}
@@ -223,20 +218,21 @@ img_to_tilemap :: proc(
 	tilemap: Tilemap,
 	player_spawn: TilemapTileId,
 ) {
-	w, h := len(img), len(img[0])
+	w, h := len(img[0]), len(img)
 	tiles := maps.make_grid_slice(Tile, w, h)
-	for i in 0 ..< w {
-		for j in 0 ..< h {
-			tile := color_to_tile(img[i][j])
+	print("tiles", len(tiles[0]), len(tiles))
+	for r in 0 ..< h {
+		for c in 0 ..< w {
+			tile := color_to_tile(img[r][c])
 			props := TILE_PROPERTIES[tile.type]
 			tile.rotation = .North
 			if props.random_rotation {
 				tile.rotation = rand.choice_enum(CardinalDirection)
 			}
 			if tile.spawn == .Player {
-				player_spawn = TilemapTileId{i, j}
+				player_spawn = TilemapTileId{r, c}
 			}
-			tiles[i][j] = tile
+			tiles[r][c] = tile
 		}
 	}
 	return tiles, player_spawn

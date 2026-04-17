@@ -544,8 +544,20 @@ generate_spiral_path :: proc(
 	)
 	return path[:]
 }
-img_to_buf :: proc(img: rl.Image) -> [][]Color {
+img_to_buf :: proc(img: rl.Image, transpose: bool = false) -> [][]Color {
 	img_multiptr := cast([^]Color)img.data
+	if transpose {
+		width := img.height
+		height := img.width
+		res := make([][]Color, height)
+		for r in 0 ..< height {
+			res[r] = make([]Color, width)
+			for c in 0 ..< width {
+				res[r][c] = img_multiptr[c * height + r]
+			}
+		}
+		return res
+	}
 	width := img.width
 	height := img.height
 	res := make([][]Color, height)
@@ -577,9 +589,9 @@ bool_grid_to_img_buf :: proc(
 
 
 make_grid_slice :: proc($T: typeid, w, h: int) -> [][]T {
-	res := make([][]T, w)
-	for i in 0 ..< w {
-		res[i] = make([]T, h)
+	res := make([][]T, h)
+	for i in 0 ..< h {
+		res[i] = make([]T, w)
 	}
 	return res
 }
