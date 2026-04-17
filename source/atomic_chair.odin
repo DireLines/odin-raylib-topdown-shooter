@@ -803,13 +803,9 @@ atomic_chair_update :: proc(dt: f64) {
 			#partial switch other_handle in collision.b {
 			case GameObjectHandle:
 				other, ok := get_object(other_handle)
-				print("player collided with", other.name)
 				if .Checkpoint in other.tags {
-					print("player collided with checkpoint")
 					should_save_game = true
 				}
-			case TilemapTileId:
-				print("player collided with wall")
 			}
 		}
 	}
