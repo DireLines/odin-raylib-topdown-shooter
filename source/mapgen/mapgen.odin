@@ -546,28 +546,20 @@ generate_spiral_path :: proc(
 }
 img_to_buf :: proc(img: rl.Image, transpose: bool = false) -> [][]Color {
 	img_multiptr := cast([^]Color)img.data
+	buf_width, buf_height := img.width, img.height
 	if transpose {
-		width := img.height
-		height := img.width
-		res := make([][]Color, height)
-		for r in 0 ..< height {
-			res[r] = make([]Color, width)
-			for c in 0 ..< width {
-				res[r][c] = img_multiptr[c * height + r]
-			}
-		}
-		return res
+		buf_width, buf_height = buf_height, buf_width
 	}
-	width := img.width
-	height := img.height
-	res := make([][]Color, height)
-	for r in 0 ..< height {
-		res[r] = make([]Color, width)
-		for c in 0 ..< width {
-			res[r][c] = img_multiptr[r * width + c]
+	buf := make([][]Color, buf_height)
+	for r in 0 ..< buf_height {
+		buf[r] = make([]Color, buf_width)
+		for c in 0 ..< buf_width {
+			idx := r * img.width + c
+			if transpose {idx = c * img.width + r}
+			buf[r][c] = img_multiptr[idx]
 		}
 	}
-	return res
+	return buf
 }
 render_texture_to_img_buf :: proc(tex: rl.RenderTexture2D) -> [][]Color {
 	return img_to_buf(rl.LoadImageFromTexture(tex.texture))

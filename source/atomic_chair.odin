@@ -1513,7 +1513,7 @@ spawn_checkpoint :: proc(pos: vec2) -> GameObjectHandle {
 		transform = {position = pos, scale = {1, 1}, pivot = CHECKPOINT_SIZE / 2},
 		render_info = {
 			texture = tex,
-			color = set_alpha(rl.WHITE, 100),
+			color = set_alpha(PLAYER_MAIN_COLOR, 100),
 			render_layer = uint(RenderLayer.Ceiling),
 		},
 		hitbox = {shape = AABB{min = -CHECKPOINT_SIZE / 2, max = CHECKPOINT_SIZE / 2}},
