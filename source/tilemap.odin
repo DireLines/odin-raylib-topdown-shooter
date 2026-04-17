@@ -220,7 +220,6 @@ img_to_tilemap :: proc(
 ) {
 	w, h := len(img[0]), len(img)
 	tiles := maps.make_grid_slice(Tile, w, h)
-	print("tiles", len(tiles[0]), len(tiles))
 	for r in 0 ..< h {
 		for c in 0 ..< w {
 			tile := color_to_tile(img[r][c])
