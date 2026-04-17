@@ -544,18 +544,22 @@ generate_spiral_path :: proc(
 	)
 	return path[:]
 }
-img_to_buf :: proc(img: rl.Image) -> [][]Color {
+img_to_buf :: proc(img: rl.Image, transpose: bool = false) -> [][]Color {
 	img_multiptr := cast([^]Color)img.data
-	width := img.width
-	height := img.height
-	res := make([][]Color, height)
-	for r in 0 ..< height {
-		res[r] = make([]Color, width)
-		for c in 0 ..< width {
-			res[r][c] = img_multiptr[r * width + c]
+	buf_width, buf_height := img.width, img.height
+	if transpose {
+		buf_width, buf_height = buf_height, buf_width
+	}
+	buf := make([][]Color, buf_height)
+	for r in 0 ..< buf_height {
+		buf[r] = make([]Color, buf_width)
+		for c in 0 ..< buf_width {
+			idx := r * img.width + c
+			if transpose {idx = c * img.width + r}
+			buf[r][c] = img_multiptr[idx]
 		}
 	}
-	return res
+	return buf
 }
 render_texture_to_img_buf :: proc(tex: rl.RenderTexture2D) -> [][]Color {
 	return img_to_buf(rl.LoadImageFromTexture(tex.texture))
@@ -577,9 +581,9 @@ bool_grid_to_img_buf :: proc(
 
 
 make_grid_slice :: proc($T: typeid, w, h: int) -> [][]T {
-	res := make([][]T, w)
-	for i in 0 ..< w {
-		res[i] = make([]T, h)
+	res := make([][]T, h)
+	for i in 0 ..< h {
+		res[i] = make([]T, w)
 	}
 	return res
 }

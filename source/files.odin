@@ -233,3 +233,19 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	g.main_camera = save.main_camera
 	game_specific_load(g, save)
 }
+
+save_game :: proc(g: ^Game, path: string = "") {
+	when ODIN_OS == .JS {
+		print("saving & loading not supported on WASM yet")
+	} else {
+		_save_game(g, path)
+	}
+}
+
+load_game :: proc(g: ^Game, path: string = "") {
+	when ODIN_OS == .JS {
+		print("saving & loading not supported on WASM yet")
+	} else {
+		_load_game(g, path)
+	}
+}

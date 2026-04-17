@@ -7,7 +7,7 @@ import "core:os"
 import hm "handle_map_static"
 
 // Serializes and writes the game state to a file at path.
-save_game :: proc(g: ^Game, path: string = "") -> bool {
+_save_game :: proc(g: ^Game, path: string = "") -> bool {
 	print("saving", path)
 	data, merr := game_to_cbor(g)
 	if merr != nil {
@@ -26,7 +26,7 @@ save_game :: proc(g: ^Game, path: string = "") -> bool {
 
 // Reads a file at path and restores game state from it.
 // See apply_save_to_game for caveats about object cleanup before calling.
-load_game :: proc(g: ^Game, path: string) -> bool {
+_load_game :: proc(g: ^Game, path: string) -> bool {
 	print("loading", path)
 	data, rerr := os.read_entire_file(path, context.allocator)
 	if rerr != nil {
