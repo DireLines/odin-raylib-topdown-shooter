@@ -67,6 +67,7 @@ ObjectTag :: enum {
 	Bullet,
 	Player,
 	Enemy,
+	Checkpoint,
 }
 
 //types needed for tilemap
@@ -786,10 +787,33 @@ atomic_chair_update :: proc(dt: f64) {
 				make_animation(.Squatman_Dead, loop = false),
 			)
 		}
+		if player.color.a < 20 {
+			print("loading game")
+			load_game(game, "save.cbor")
+		}
 		if (player.color.a - 2) < player.color.a {
 			player.color.a -= 2
 		}
 	}
+	should_save_game := false
+	{
+		player_collisions, has_collisions := game.collisions[game.player_handle]
+		for collision in player_collisions {
+			if collision.type != .start {continue}
+			#partial switch other_handle in collision.b {
+			case GameObjectHandle:
+				other, ok := get_object(other_handle)
+				print("player collided with", other.name)
+				if .Checkpoint in other.tags {
+					print("player collided with checkpoint")
+					should_save_game = true
+				}
+			case TilemapTileId:
+				print("player collided with wall")
+			}
+		}
+	}
+	timer->time("check player collisions")
 	//update score label
 	{
 		score_label := hm.get(&game.objects, player.score_label_handle)
@@ -824,6 +848,10 @@ atomic_chair_update :: proc(dt: f64) {
 						#partial switch other.hitbox.layer {
 						case .Bullet, .PlayerBullet, .EnemyBullet:
 						//bullets should phase through each other - don't do anything
+						case .Default:
+							if .Checkpoint not_in other.tags {
+								should_kill_bullet = true
+							}
 						case .Enemy:
 							should_kill_bullet = true
 							enemy := other
@@ -1016,6 +1044,10 @@ atomic_chair_update :: proc(dt: f64) {
 		update_health_bar(player.health_info)
 	}
 	timer->time("update health bar displays")
+	if should_save_game {
+		save_game(game, "save.cbor")
+		timer->time("save game")
+	}
 }
 
 atomic_chair_stop :: proc() {
@@ -1474,18 +1506,18 @@ circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
 }
 
 spawn_checkpoint :: proc(pos: vec2) -> GameObjectHandle {
-	CHECKPOINT_SIZE :: vec2{TILE_SIZE * 2, TILE_SIZE * 2}
+	CHECKPOINT_SIZE :: vec2{TILE_SIZE, TILE_SIZE}
 	tex := atlas_textures[.White]
 	checkpoint := GameObject {
 		name = fmt.aprint("checkpoint"),
-		transform = {position = pos, scale = {2, 2}},
+		transform = {position = pos, scale = {1, 1}, pivot = CHECKPOINT_SIZE / 2},
 		render_info = {
 			texture = tex,
 			color = set_alpha(rl.WHITE, 100),
 			render_layer = uint(RenderLayer.Ceiling),
 		},
-		hitbox = {shape = AABB{min = pos - CHECKPOINT_SIZE / 2, max = pos + CHECKPOINT_SIZE / 2}},
-		tags = {.Collide, .Sprite},
+		hitbox = {shape = AABB{min = -CHECKPOINT_SIZE / 2, max = CHECKPOINT_SIZE / 2}},
+		tags = {.Collide, .Sprite, .Checkpoint},
 	}
 	return spawn_object(checkpoint)
 }
