@@ -8,6 +8,9 @@ GameObjectInst :: struct($T: typeid) {
 	using obj: ^GameObject,
 	using var: ^T,
 }
+object_inst :: proc(o: ^GameObject, $T: typeid) -> GameObjectInst(T) {
+	return GameObjectInst(T){o, &o.variant.(T)}
+}
 get_object_from_ptr_typed :: proc(
 	o: ^GameObject,
 	$T: typeid,
@@ -30,8 +33,9 @@ get_object_from_ptr_typed :: proc(
 		)
 		return GameObjectInst(T){o, nil}, false
 	}
-	return GameObjectInst(T){o, &o.variant.(T)}, true
+	return object_inst(o, T), true
 }
+
 get_object_from_handle_typed :: proc(
 	h: GameObjectHandle,
 	$T: typeid,
@@ -81,7 +85,7 @@ all_objects_with_variant :: proc(
 ) {
 	for obj, h in hm.iter(it) {
 		if obj._variant_type == variant_type {
-			return {obj, &obj.variant.(variant_type)}, h, true
+			return object_inst(obj, variant_type), h, true
 		}
 	}
 	return

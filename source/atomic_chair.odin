@@ -186,13 +186,15 @@ get_health_bar_def :: proc(h: Health) -> UIStatBar {
 }
 DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
+	//engine provided variants
 	DefaultVariant,
-	Player,
-	Enemy,
-	Bullet,
 	UIButton,
 	UISlider,
 	UIStatBar,
+	//game-specific variants
+	Player,
+	Enemy,
+	Bullet,
 }
 GameSpecificProps :: struct {
 	text: string,
@@ -328,7 +330,7 @@ main_menu_start :: proc() {
 	//spawn buttons
 	titlebar_tex := atlas_textures[.Atomic_Chair_Title]
 	sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
-	titlebar_handle := spawn_object(
+	titlebar := spawn_object(
 	GameObject {
 		transform = {
 			position = MENU_SCREEN_DIMS * {0.5, 0.1},
@@ -342,7 +344,7 @@ main_menu_start :: proc() {
 		tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
 	},
 	)
-	play_button := spawn_button(
+	play_button := spawn_ui_button(
 		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
 		.White,
 		"PLAY",
@@ -360,12 +362,12 @@ main_menu_start :: proc() {
 	//volume sliders
 	slider_handles := spawn_vol_sliders()
 	//TODO credits button
-	main_menu_objects := [dynamic]GameObjectHandle{play_button, titlebar_handle}
+	main_menu_objects := [dynamic]GameObjectHandle{play_button.handle, titlebar.handle}
 	for h in slider_handles {
 		append(&main_menu_objects, h)
 	}
 	when ODIN_OS != .JS {
-		quit_button := spawn_button(
+		quit_button := spawn_ui_button(
 			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 			.White,
 			"QUIT",
@@ -375,14 +377,15 @@ main_menu_start :: proc() {
 				game.quit = true
 			},
 		)
-		append(&main_menu_objects, quit_button)
+		append(&main_menu_objects, quit_button.handle)
 	}
-	game.menu_container = spawn_object(
+	menu_container := spawn_object(
 		GameObject {
 			associated_objects = {"main_menu" = main_menu_objects},
 			tags = {.DoNotSerialize, .DontDestroyOnLoad},
 		},
 	)
+	game.menu_container = menu_container.handle
 }
 
 main_menu_update :: proc(dt: f64) {
@@ -497,8 +500,7 @@ spawn_player :: proc() -> GameObjectHandle {
 		tags = {.Player, .Collide, .Sprite},
 		variant = Player{health = 6, max_health = 6, state = .Alive, invuln_cooldown = 1.0},
 	}
-	player_handle := spawn_object(player_def)
-	player := get_object(player_handle, Player)
+	player := spawn_object(player_def, Player)
 	{
 		score_label := GameObject {
 			name = "score label",
@@ -519,21 +521,17 @@ spawn_player :: proc() -> GameObjectHandle {
 			tags = {.Text},
 			parent_handle = game.screen_space_parent_handle,
 		}
-		player.score_label_handle = spawn_object(score_label)
+		player.score_label_handle = spawn_object(score_label).handle
 	}
 	{
 		health_bar_def := get_health_bar_def(player.health_info)
 		PLAYER_HEALTH_BAR_LENGTH :: 500
 		health_bar_def.disp_length = PLAYER_HEALTH_BAR_LENGTH
 		health_bar_def.disp_height = 30
-		player.health_bar = spawn_ui_stat_bar(
-			"player health",
-			{WINDOW_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10},
-			game.screen_space_parent_handle,
-			health_bar_def,
-		)
+		player.health_bar =
+			spawn_ui_stat_bar("player health", {WINDOW_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10}, game.screen_space_parent_handle, health_bar_def).handle
 	}
-	return player_handle
+	return player.handle
 }
 
 atomic_chair_start :: proc() {
@@ -546,7 +544,7 @@ atomic_chair_start :: proc() {
 }
 
 pause_menu_start :: proc() {
-	resume_button := spawn_button(
+	resume_button := spawn_ui_button(
 		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
 		.White,
 		"RESUME",
@@ -558,7 +556,7 @@ pause_menu_start :: proc() {
 	)
 	//volume sliders
 	slider_handles := spawn_vol_sliders()
-	main_menu_button := spawn_button(
+	main_menu_button := spawn_ui_button(
 		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 		.White,
 		"QUIT",
@@ -570,7 +568,7 @@ pause_menu_start :: proc() {
 			main_menu_start()
 		},
 	)
-	pause_menu_objects := [dynamic]GameObjectHandle{resume_button, main_menu_button}
+	pause_menu_objects := [dynamic]GameObjectHandle{resume_button.handle, main_menu_button.handle}
 	for h in slider_handles {
 		append(&pause_menu_objects, h)
 	}
@@ -597,7 +595,7 @@ reset_game :: proc(g: ^Game = game) {
 	clear(&g.loaded_chunks)
 	recreate_final_transforms(g)
 	g.frame_counter = 0
-	g.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"})
+	g.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"}).handle
 	g.player_handle = {}
 }
 
@@ -776,7 +774,7 @@ atomic_chair_update :: proc(dt: f64) {
 				player_center -
 				{0, 50} +
 				linalg.normalize(bullet_velocity) * PLAYER_BULLET_FIRING_POSITION_OFFSET
-			bullet_handle := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
+			bullet := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
 			play_sound(get_sound("light-fire.wav"))
 		}
 		timer->time("spawn bullets")
@@ -1051,45 +1049,6 @@ atomic_chair_stop :: proc() {
 	reset_game()
 }
 
-ButtonCallbackInfo :: struct {
-	game:          ^Game,
-	button:        GameObjectInst(UIButton),
-	button_handle: GameObjectHandle,
-}
-spawn_button :: proc(
-	pos: vec2,
-	texture: TextureName, //TODO probably need to eventually supply hover / click animations
-	text: string,
-	on_click: proc(info: ButtonCallbackInfo),
-) -> GameObjectHandle {
-	tex := atlas_textures[texture]
-	min_scale :: vec2{3, 0.9}
-	button_obj := GameObject {
-		name = fmt.aprint(text, "button"),
-		text = text,
-		transform = {
-			position = pos,
-			rotation = 0,
-			scale = min_scale,
-			pivot = vec2{tex.rect.width, tex.rect.height} / 2,
-		},
-		render_info = {
-			texture = tex,
-			color = rl.WHITE,
-			render_layer = uint(RenderLayer.UI),
-			text_render_info = {font_size = UI_MAIN_FONT_SIZE},
-		},
-		tags = {.Sprite, .Text, .DoNotSerialize, .DontDestroyOnLoad},
-		variant = UIButton {
-			min_scale = min_scale,
-			max_scale = {min_scale.x * 1.3, min_scale.y},
-			on_click = on_click,
-		},
-		parent_handle = game.screen_space_parent_handle,
-	}
-	return spawn_object(button_obj)
-}
-
 
 EnemyType :: enum {
 	Basic,
@@ -1110,8 +1069,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 			pathfind_index = rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
 		},
 	}
-	enemy_handle := spawn_object(enemy_obj)
-	enemy := get_object(enemy_handle, Enemy)
+	enemy := spawn_object(enemy_obj, Enemy)
 	enemy.texture = atlas_textures[.Enemy_Face]
 	enemy.color = rl.WHITE
 	obj_name := "enemy"
@@ -1123,17 +1081,13 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 	enemy.name = fmt.aprint(obj_name)
 	{
 		health_bar_def := get_health_bar_def(enemy.health_info)
-		enemy.health_bar = spawn_ui_stat_bar(
-			fmt.aprint(obj_name, "health"),
-			{-64, -70},
-			enemy_handle,
-			health_bar_def,
-		)
+		enemy.health_bar =
+			spawn_ui_stat_bar(fmt.aprint(obj_name, "health"), {-64, -70}, enemy.handle, health_bar_def).handle
 	}
-	return enemy_handle
+	return enemy.handle
 }
 
-spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectHandle {
+spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectInst(Bullet) {
 	//shoot bullet
 	tex := atlas_textures[PLAYER_BULLET_TEXTURE]
 	tex_dims := vec2{tex.rect.width, tex.rect.height}
@@ -1152,7 +1106,7 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectHandle 
 		tags = {.Bullet, .Collide, .Sprite},
 		variant = Bullet{nil, .Alive},
 	}
-	return spawn_object(bullet)
+	return spawn_object(bullet, Bullet)
 }
 
 get_axis :: proc(key_neg, key_pos: rl.KeyboardKey) -> f64 {
@@ -1168,109 +1122,6 @@ play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
 	rl.PlaySound(sound)
 }
 
-
-get_slider_handle_text :: proc(frac, val: f64, show_percentage: bool = false) -> string {
-	return(
-		show_percentage ? fmt.aprintf("%d", int(math.round(frac * 100))) : fmt.aprintf("%.2f", val) \
-	)
-}
-spawn_ui_slider :: proc(
-	pos: vec2,
-	handle_texture: TextureName,
-	text: string,
-	slider_info: UISlider,
-) -> (
-	slider_handle, handle_handle, label_handle: GameObjectHandle,
-) {
-
-	handle_tex := atlas_textures[handle_texture]
-	handle_scale := vec2{0.7, 0.4}
-	default_frac :=
-		(slider_info.default_value - slider_info.min_value) /
-		(slider_info.max_value - slider_info.min_value)
-	handle_x :=
-		slider_info.left_pos + default_frac * (slider_info.right_pos - slider_info.left_pos)
-	handle_def := GameObject {
-		name = fmt.aprint(text, "slider handle"),
-		text = get_slider_handle_text(
-			default_frac,
-			slider_info.default_value,
-			slider_info.show_percentage,
-		),
-		transform = {
-			position = {handle_x, pos.y},
-			rotation = 0,
-			scale = handle_scale,
-			pivot = vec2{handle_tex.rect.width, handle_tex.rect.height} / 2,
-		},
-		render_info = {
-			texture = handle_tex,
-			color = rl.WHITE,
-			render_layer = uint(RenderLayer.UI),
-			text_render_info = {font_size = UI_SECONDARY_FONT_SIZE, text_color = rl.BLACK},
-		},
-		tags = {.Sprite, .Text, .DoNotSerialize, .DontDestroyOnLoad},
-		variant = UIButton {
-			min_scale = handle_scale,
-			max_scale = {handle_scale.x, handle_scale.y},
-			on_click_start = proc(info: ButtonCallbackInfo) {
-				slider_handle := info.button.associated_objects["slider"].(GameObjectHandle)
-				slider := get_object(slider_handle, UISlider)
-				game.clicked_ui_object = slider_handle
-			},
-		},
-		parent_handle = game.screen_space_parent_handle,
-	}
-	slider_info := slider_info
-	handle_object: ^GameObject
-	slider_info.handle_handle, handle_object = spawn_and_return_object(handle_def)
-	track_tex := atlas_textures[.White]
-	track_width := slider_info.right_pos - slider_info.left_pos
-	track_scale := vec2{track_width / f64(track_tex.rect.width), 10.0 / f64(track_tex.rect.height)}
-	slider_def := GameObject {
-		name = fmt.aprint(text, "slider"),
-		transform = {
-			position = pos,
-			rotation = 0,
-			scale = track_scale,
-			pivot = vec2{f64(track_tex.rect.width), f64(track_tex.rect.height)} / 2,
-		},
-		render_info = {
-			texture = track_tex,
-			color = {255, 255, 255, 100},
-			render_layer = uint(RenderLayer.UI) - 1,
-		},
-		tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
-		parent_handle = game.screen_space_parent_handle,
-		variant = slider_info,
-	}
-	slider_object: ^GameObject
-	slider_handle, slider_object = spawn_and_return_object(slider_def)
-	handle_object.associated_objects["slider"] = slider_handle
-	LABEL_PIXEL_PADDING :: 50
-	label_def := GameObject {
-		name = fmt.aprint(text, "slider label"),
-		text = text,
-		transform = {
-			position = {slider_info.left_pos - LABEL_PIXEL_PADDING, pos.y},
-			scale = {1, 1},
-			pivot = {0, 0},
-		},
-		render_info = {
-			color = rl.WHITE,
-			render_layer = uint(RenderLayer.UI),
-			text_render_info = {
-				text_color = PLAYER_MAIN_COLOR,
-				text_alignment = .Right,
-				font_size = UI_MAIN_FONT_SIZE,
-			},
-		},
-		tags = {.Text, .DoNotSerialize, .DontDestroyOnLoad},
-		parent_handle = game.screen_space_parent_handle,
-	}
-	label_handle = spawn_object(label_def)
-	return slider_handle, slider_info.handle_handle, label_handle
-}
 
 spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 	master_vol_slider, master_vol_handle, master_vol_label := spawn_ui_slider(
@@ -1317,108 +1168,6 @@ spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 	}
 }
 
-spawn_ui_stat_bar :: proc(
-	name: string,
-	pos: vec2,
-	parent: Maybe(GameObjectHandle),
-	stat_bar_info: UIStatBar,
-) -> GameObjectHandle {
-	return spawn_object(
-		GameObject {
-			name = fmt.aprint(name, "bar"),
-			transform = {position = pos, scale = {1, 1}},
-			render_info = {
-				color = rl.WHITE,
-				render_layer = uint(RenderLayer.UI),
-				draw = draw_ui_stat_bar,
-			},
-			tags = {.CustomDraw},
-			variant = stat_bar_info,
-			parent_handle = parent,
-		},
-	)
-}
-draw_ui_stat_bar :: proc(bar: ^GameObject) {
-	stat_bar := get_object(bar, UIStatBar)
-	//for each tick, draw a rectangle
-	frac_bar_filled :=
-		(stat_bar.current_value - stat_bar.min_value) / (stat_bar.max_value - stat_bar.min_value)
-	num_ticks_filled := int(math.floor(frac_bar_filled * f64(stat_bar.num_ticks)))
-	tick_width := stat_bar.disp_length / f64(stat_bar.num_ticks)
-	tick_height := stat_bar.disp_height
-	transform := game.final_transforms[bar.handle.idx]
-	top_left := mat_vec_mul(transform.transform, {0, 0})
-	bottom_right := mat_vec_mul(transform.transform, {1, 1})
-	if !transform.screen_space {
-		top_left = world_to_screen(top_left, screen_conversion)
-		bottom_right = world_to_screen(bottom_right, screen_conversion)
-	}
-	filled_color, unfilled_color := stat_bar.filled_color, stat_bar.unfilled_color
-	for i in 0 ..< stat_bar.num_ticks {
-		pos := vec2{top_left.x + f64(i) * tick_width, top_left.y}
-		color := filled_color
-		if i >= num_ticks_filled {
-			color = unfilled_color
-		}
-		tick_disp_width := tick_width
-		if i == num_ticks_filled {
-			//handle partially filled tick
-			single_tick_value :=
-				(stat_bar.max_value - stat_bar.min_value) / f64(stat_bar.num_ticks)
-			filled_ticks_total := f64(num_ticks_filled) * single_tick_value
-			frac_incomplete_tick_filled :=
-				(stat_bar.current_value - filled_ticks_total) / single_tick_value
-			switch stat_bar.incomplete_tick_display_mode {
-			case .Exact:
-				tick_disp_width = tick_width * frac_incomplete_tick_filled
-				color = filled_color
-				//also display the unfilled remainder of the tick
-				rl.DrawRectangle(
-					i32(pos.x + tick_disp_width),
-					i32(pos.y),
-					i32(tick_width - tick_disp_width) + 1,
-					i32(tick_height * (bottom_right - top_left).y),
-					unfilled_color,
-				)
-
-			case .Round:
-				color = frac_incomplete_tick_filled < 0.5 ? unfilled_color : filled_color
-			case .Ceil:
-				color = filled_color
-			case .Floor:
-				color = unfilled_color
-			}
-			if stat_bar.interp_tick_color {
-				color = lerp_colors(unfilled_color, filled_color, frac_incomplete_tick_filled)
-			}
-		}
-		rl.DrawRectangle(
-			i32(pos.x),
-			i32(pos.y),
-			i32(tick_disp_width),
-			i32(tick_height * (bottom_right - top_left).y),
-			color,
-		)
-		//black lines between ticks to cover seams
-		rl.DrawRectangle(
-			i32(pos.x) - 1,
-			i32(pos.y),
-			3,
-			i32(tick_height * (bottom_right - top_left).y),
-			rl.BLACK,
-		)
-		if i == stat_bar.num_ticks - 1 {
-			rl.DrawRectangle(
-				i32(pos.x + tick_disp_width) - 1,
-				i32(pos.y),
-				3,
-				i32(tick_height * (bottom_right - top_left).y),
-				rl.BLACK,
-			)
-		}
-	}
-}
-
 
 lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
 	result: rl.Color
@@ -1434,13 +1183,12 @@ game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
 	game.global_tilemap = curr_global_tilemap
 
 	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
-	//which is game-specific logic, so it must go here
+	//if you use function pointers, you must do that here
 	it := hm.make_iter(&game.objects)
 	for obj, h in all_objects_with_variant(&it, UIStatBar) {
 		obj.draw = draw_ui_stat_bar
 	}
 }
-
 
 obj_to_circle :: proc(h: GameObjectHandle) -> Circle {
 	obj := hm.get(&game.objects, h)
@@ -1501,7 +1249,7 @@ circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
 	}
 }
 
-spawn_checkpoint :: proc(pos: vec2) -> GameObjectHandle {
+spawn_checkpoint :: proc(pos: vec2) -> ^GameObject {
 	CHECKPOINT_SIZE :: vec2{TILE_SIZE, TILE_SIZE}
 	tex := atlas_textures[.White]
 	checkpoint := GameObject {

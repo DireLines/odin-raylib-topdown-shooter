@@ -1,7 +1,6 @@
 package game
 import "core:fmt"
 import "core:math"
-import "core:reflect"
 import "core:strings"
 import "core:time"
 import hm "handle_map_static"
@@ -280,23 +279,6 @@ game_shutdown_window :: proc() {
 	rl.CloseWindow()
 }
 
-
-spawn_and_return_object :: proc(object: GameObject) -> (GameObjectHandle, ^GameObject) {
-	render_layer := object.render_layer
-	if render_layer >= NUM_RENDER_LAYERS {
-		print("bad render layer, putting in default layer")
-		render_layer = 0
-	}
-	h := hm.add(&game.objects, object)
-	obj := hm.get(&game.objects, h) //TODO: should return the ^obj from hm.add?
-	obj._variant_type = reflect.union_variant_typeid(obj.variant)
-	append(&game.render_layers[render_layer], h)
-	return h, obj
-}
-spawn_object :: proc(object: GameObject) -> GameObjectHandle {
-	h, _ := spawn_and_return_object(object)
-	return h
-}
 @(export)
 game_step :: proc(game: ^Game = game) {
 	frame_start = time.tick_now()

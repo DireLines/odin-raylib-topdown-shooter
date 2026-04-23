@@ -231,6 +231,7 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	g.screen_space_parent_handle = save.screen_space_parent_handle
 	g.paused = save.paused
 	g.main_camera = save.main_camera
+	restore_function_pointers(g, save)
 	game_specific_load(g, save)
 }
 
@@ -247,5 +248,13 @@ load_game :: proc(g: ^Game, path: string = "") {
 		print("saving & loading not supported on WASM yet")
 	} else {
 		_load_game(g, path)
+	}
+}
+
+//unfortunately save/load destroys function pointers, we need to replace the ones we care about
+restore_function_pointers :: proc(game: ^Game = game, save: ^GameSave) {
+	it := hm.make_iter(&game.objects)
+	for obj, h in all_objects_with_variant(&it, UIStatBar) {
+		obj.draw = draw_ui_stat_bar
 	}
 }
