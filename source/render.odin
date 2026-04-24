@@ -476,6 +476,7 @@ render :: proc() {
 			if !ok {
 				continue
 			}
+			if .Disabled in obj.tags {continue}
 			change_shader(obj.shader, &curr_shader_name)
 			transform_info := game.final_transforms[handle.idx]
 			if handle in objects_to_draw || game.paused || transform_info.screen_space {

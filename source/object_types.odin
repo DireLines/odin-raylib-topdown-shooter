@@ -58,9 +58,35 @@ get_object :: proc {
 	get_object_from_handle_untyped,
 }
 
+
+object_iter :: proc() -> GameObjectsIterator {
+	return hm.make_iter(&game.objects)
+}
+
+all_objects :: proc(
+	it: ^GameObjectsIterator,
+	include_disabled: bool = false,
+) -> (
+	val: ^GameObject,
+	h: GameObjectHandle,
+	has_next: bool,
+) {
+	if include_disabled {
+		return hm.iter(it)
+	}
+	for obj, handle in hm.iter(it) {
+		if .Disabled not_in obj.tags { 	//superset - object has all tags
+			return obj, handle, true
+		}
+	}
+	return
+}
+
+
 all_objects_with_tags :: proc(
 	it: ^GameObjectsIterator,
 	tags: ..ObjectTag,
+	include_disabled: bool = false,
 ) -> (
 	val: ^GameObject,
 	h: GameObjectHandle,
@@ -69,15 +95,18 @@ all_objects_with_tags :: proc(
 	tags := slice.enum_slice_to_bitset(tags, Tags)
 	for obj, handle in hm.iter(it) {
 		if obj.tags >= tags { 	//superset - object has all tags
+			if !include_disabled && .Disabled in obj.tags && .Disabled not_in tags {continue}
 			return obj, handle, true
 		}
 	}
 	return
 }
 
+
 all_objects_with_variant :: proc(
 	it: ^GameObjectsIterator,
 	$variant_type: typeid,
+	include_disabled: bool = false,
 ) -> (
 	val: GameObjectInst(variant_type),
 	h: GameObjectHandle,
@@ -85,6 +114,7 @@ all_objects_with_variant :: proc(
 ) {
 	for obj, h in hm.iter(it) {
 		if obj._variant_type == variant_type {
+			if !include_disabled && .Disabled in obj.tags {continue}
 			return object_inst(obj, variant_type), h, true
 		}
 	}

@@ -147,12 +147,11 @@ get_texture_aabb_for_object :: proc(obj: ^GameObject, transform: mat3) -> AABB {
 	return {linalg.min(c1, c2), linalg.max(c1, c2)}
 }
 
-
 remake_chunks :: proc(dt: f64) {
 	clear_map(&game.objects_in_multiple_chunks)
 	clear_map(&game.chunks)
 	it := hm.make_iter(&game.objects)
-	for obj, h in hm.iter(&it) {
+	for obj, h in all_objects(&it) {
 		new_chunks: []ChunkId
 		if .Collide in obj.tags {
 			//make sure obj is in the right chunks and only those chunks
@@ -300,6 +299,7 @@ physics_update :: proc(dt: f64) {
 		boxes := make([dynamic]Handle_Hitbox, allocator = context.temp_allocator)
 		for h in objects_in_chunk {
 			obj := hm.get(&game.objects, h)
+			if .Disabled in obj.tags {continue}
 			if .Collide in obj.tags {
 				moving_box := get_moving_hitbox_for_object(
 					obj,
@@ -327,6 +327,7 @@ physics_update :: proc(dt: f64) {
 			//for each hitbox in the object, look up its index in boxes and start iterating from there
 			//keep running min over all hitboxes, and keep track of which hitbox on each obj was involved in the collision
 			obj := hm.get(&game.objects, h)
+			if .Disabled in obj.tags {continue}
 			if .Collide not_in obj.tags {continue}
 
 			//find object's hitbox within boxes
@@ -455,6 +456,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []Collision {
 	}
 	collisions := make([dynamic]Collision, allocator = context.temp_allocator)
 	obj := hm.get(&game.objects, obj_handle)
+	if .Disabled in obj.tags {return {}}
 	phys_update := kinematic_update(obj, dt)
 	pos_delta := phys_update.pos_delta
 	rot_delta := phys_update.rot_delta

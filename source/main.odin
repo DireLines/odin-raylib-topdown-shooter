@@ -34,7 +34,7 @@ CHUNK_WIDTH :: TILE_SIZE * CHUNK_WIDTH_TILES // world units
 // MAX_HITBOXES_PER_OBJECT :: 6 //TODO
 SMOOTHING_FRAMES :: TARGET_FPS * 5
 frame_start: time.Tick
-measured_frame_times: rb.RingBuffer(f64, SMOOTHING_FRAMES) //TODO: make ring buffer which can take non-pointer type
+measured_frame_times: rb.RingBuffer(f64, SMOOTHING_FRAMES)
 
 LOAD_PATH :: #config(load_path, "")
 

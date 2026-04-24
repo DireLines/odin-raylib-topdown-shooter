@@ -73,7 +73,6 @@ increment_animation :: proc(render_info: ^RenderInfo, anim_state: ^AnimationStat
 }
 
 //TODO: tweening (maybe use easing functions from odin raylib?)
-//TODO for better looking animations, separate display transform from actual transform and apply tween stuff to display transform only
 
 initial_animation_state :: proc(anim: Animation, paused: bool = false) -> AnimationState {
 	init_frame: TextureName

@@ -63,6 +63,7 @@ ObjectTag :: enum {
 	CustomDraw, // if present, the renderer will call the custom draw function on this object
 	DoNotSerialize, // if present, saving will not save this object
 	DontDestroyOnLoad, // if present, loading will not reset or overwrite this object
+	Disabled, // if set, systems will skip object as if it has been deleted
 	//user-defined tags
 	Bullet,
 	Player,
@@ -293,11 +294,15 @@ MenuState :: enum {
 //game-specific initialization logic (run once when game is started)
 //typically this will be "set up the main menu"
 game_start :: proc() {
-	game.color_to_tiletype[rl.BLACK] = .Wall
-	game.color_to_tiletype[FLOOR_MAP_COLOR] = .None
-	game.color_to_spawn[PLAYER_MAIN_COLOR] = .Player
-	game.color_to_spawn[BASIC_ENEMY_COLOR] = .Enemy
-	game.color_to_spawn[CHECKPOINT_COLOR] = .Checkpoint
+	game.color_to_tiletype = {
+		rl.BLACK        = .Wall,
+		FLOOR_MAP_COLOR = .None,
+	}
+	game.color_to_spawn = {
+		PLAYER_MAIN_COLOR = .Player,
+		BASIC_ENEMY_COLOR = .Enemy,
+		CHECKPOINT_COLOR  = .Checkpoint,
+	}
 	load_map :: proc() -> (tilemap: Tilemap, player_spawn: TilemapTileId) {
 		MAP_DATA :: #load("map.png")
 		tiles_img := rl.LoadImageFromMemory(".png", raw_data(MAP_DATA), i32(len(MAP_DATA)))
@@ -401,7 +406,7 @@ main_menu_update :: proc(dt: f64) {
 
 handle_ui_buttons :: proc() {
 	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
-	it := hm.make_iter(&game.objects)
+	it := object_iter()
 	for button, button_handle in all_objects_with_variant(&it, UIButton) {
 		if game.clicked_ui_object != nil && game.clicked_ui_object != button_handle {continue}
 		screen_aabb := get_texture_aabb_for_object(
@@ -409,7 +414,6 @@ handle_ui_buttons :: proc() {
 			game.final_transforms[button_handle.idx].transform,
 		)
 		hovering := is_point_in_aabb(mouse_screen_pos, screen_aabb)
-		//TODO skip this stuff if there is another active UI interaction such as being in the middle of a slider drag
 		scale_target := button.min_scale
 		if hovering {
 			scale_target = button.max_scale
@@ -436,7 +440,7 @@ handle_ui_buttons :: proc() {
 
 handle_ui_sliders :: proc() {
 	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
-	it := hm.make_iter(&game.objects)
+	it := object_iter()
 	for slider, slider_handle in all_objects_with_variant(&it, UISlider) {
 		if game.clicked_ui_object != slider_handle {continue}
 		handle := get_object(slider.handle_handle, UIButton)
@@ -818,7 +822,7 @@ atomic_chair_update :: proc(dt: f64) {
 			score_label.text = ""
 		}
 	}
-	{it := hm.make_iter(&game.objects)
+	{it := object_iter()
 		for bullet, bullet_handle in all_objects_with_variant(&it, Bullet) {
 			switch bullet.state {
 			case .Alive:
@@ -897,7 +901,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("handle bullet hits")
-	{it := hm.make_iter(&game.objects)
+	{it := object_iter()
 		printed_details := false
 		for enemy, h in all_objects_with_variant(&it, Enemy) {
 			activate_distance :: TILE_SIZE * 50
@@ -967,7 +971,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("move enemies")
-	{it := hm.make_iter(&game.objects)
+	{it := object_iter()
 		for enemy, h in all_objects_with_variant(&it, Enemy) {
 			collisions, has_collisions := game.collisions[h]
 			if !has_collisions {continue}
@@ -996,7 +1000,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("resolve enemy collisions")
-	{it := hm.make_iter(&game.objects)
+	{it := object_iter()
 		for e1, h1 in all_objects_with_variant(&it, Enemy) {
 			it_inner := it
 			for e2, h2 in all_objects_with_variant(&it_inner, Enemy) {
@@ -1020,7 +1024,7 @@ atomic_chair_update :: proc(dt: f64) {
 		}
 	}
 	timer->time("resolve enemy-enemy repulsion")
-	{it := hm.make_iter(&game.objects)
+	{it := object_iter()
 		update_health_bar :: proc(h: Health) {
 			bar := get_object(h.health_bar, UIStatBar)
 			bar.current_value = f64(h.health)
@@ -1184,7 +1188,7 @@ game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
 
 	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
 	//if you use function pointers, you must do that here
-	it := hm.make_iter(&game.objects)
+	it := object_iter()
 	for obj, h in all_objects_with_variant(&it, UIStatBar) {
 		obj.draw = draw_ui_stat_bar
 	}
