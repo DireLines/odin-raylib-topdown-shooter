@@ -159,6 +159,34 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 	g.prev_frame = rb.get_prev(&g.frame_buffer)
 
 	// Objects
+	// Zero out the handle map and write objects directly at their saved indices
+	// so that all stored GameObjectHandles remain valid.
+	// Objects tagged DontDestroyOnLoad are preserved across loads; any save entry
+	// whose index collides with one is ignored (with a warning).
+	filtered_objects := make([dynamic]GameObject, context.temp_allocator)
+	protected_indices := make(map[u32]struct{}, allocator = context.temp_allocator)
+	{
+		it := hm.make_iter(&g.objects)
+		for obj in hm.iter(&it) {
+			if .DontDestroyOnLoad in obj.tags {
+				append(&filtered_objects, obj^)
+				protected_indices[obj.handle.idx] = {}
+			}
+		}
+	}
+	for obj in save.objects {
+		if obj.handle.idx in protected_indices {
+			print(
+				"apply_save_to_game: warning: save has object at index",
+				obj.handle.idx,
+				"which is held by a DontDestroyOnLoad object; skipping",
+			)
+			continue
+		}
+		append(&filtered_objects, obj)
+	}
+	hm.clear(&g.objects)
+	hm.refill_from_list(&g.objects, filtered_objects[:])
 	it := hm.make_iter(&g.objects)
 	for obj, h in hm.iter(&it) {
 		obj._variant_type = reflect.union_variant_typeid(obj.variant)
