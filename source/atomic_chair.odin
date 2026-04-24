@@ -342,6 +342,7 @@ spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
 		sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
 		titlebar := spawn_object(
 		GameObject {
+			name = GAME_NAME,
 			transform = {
 				position = MENU_SCREEN_DIMS * {0.5, 0.1},
 				pivot    = {60, 28.25}, //TODO it *SHOULD* be half the texture width, why is it this?
@@ -645,7 +646,10 @@ reset_game :: proc(g: ^Game = game, total: bool = false) {
 	clear(&g.loaded_chunks)
 	recreate_final_transforms(g)
 	g.frame_counter = 0
-	g.screen_space_parent_handle = spawn_object(GameObject{name = "screen space parent"}).handle
+	if g.screen_space_parent_handle.idx == 0 {
+		g.screen_space_parent_handle =
+			spawn_object(GameObject{name = "screen space parent", tags = {.DoNotSerialize, .DontDestroyOnLoad}}).handle
+	}
 	g.player_handle = {}
 }
 
