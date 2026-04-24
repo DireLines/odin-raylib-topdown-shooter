@@ -149,7 +149,7 @@ GameObject :: struct {
 	tags:                      Tags,
 	variant:                   GameObjectVariant,
 	_variant_type:             typeid `cbor:"-"`, //internal use for speeding up runtime typechecks
-	using game_specific_stuff: GameSpecificProps,
+	using game_specific_stuff: GameSpecificObjectData,
 }
 
 TransformScreenSpace :: struct {

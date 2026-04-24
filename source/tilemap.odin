@@ -13,9 +13,9 @@ CardinalDirection :: enum {
 	West,
 }
 Tile :: struct {
-	type:     TileType, //what type of tile is here?
-	spawn:    SpawnType, //what kind of stuff spawns here on chunk load?
-	rotation: CardinalDirection, //only used for display
+	type:                      TileType, //what type of tile is here?
+	using game_specific_stuff: GameSpecificTileData,
+	rotation:                  CardinalDirection, //only used for display
 }
 
 TilemapChunk :: [CHUNK_WIDTH_TILES][CHUNK_HEIGHT_TILES]Tile
@@ -79,7 +79,7 @@ get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 	queue := make([dynamic]TilemapTileId, allocator = context.temp_allocator)
 	chunks := make(map[ChunkId]struct{})
 
-	if get_tile(start_tile).type == .Wall {
+	if TILE_PROPERTIES[get_tile(start_tile).type].resolve {
 		return chunks
 	}
 
@@ -103,7 +103,7 @@ get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 				continue
 			}
 			visited[neighbor] = {}
-			if get_tile(neighbor).type != .Wall {
+			if !TILE_PROPERTIES[get_tile(neighbor).type].resolve {
 				append(&queue, neighbor)
 			}
 		}

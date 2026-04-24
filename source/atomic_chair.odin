@@ -78,6 +78,9 @@ SpawnType :: enum {
 	Enemy,
 	Checkpoint,
 }
+GameSpecificTileData :: struct {
+	spawn: SpawnType,
+}
 
 //types needed in variants
 AliveDeadState :: enum {
@@ -105,7 +108,6 @@ Invuln :: struct {
 //for example, an enemy might need a max speed, state machine behavior, and an equipped weapon
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
-DefaultVariant :: distinct struct{}
 Player :: struct {
 	using health_info:  Health,
 	using invuln:       Invuln,
@@ -126,6 +128,7 @@ Bullet :: struct {
 	last_hit_object: Maybe(GameObjectHandle),
 	state:           AliveDeadState,
 }
+DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
 	//engine provided variants
 	DefaultVariant,
@@ -137,7 +140,7 @@ GameObjectVariant :: union {
 	Enemy,
 	Bullet,
 }
-GameSpecificProps :: struct {
+GameSpecificObjectData :: struct {
 	text: string,
 }
 

@@ -612,7 +612,7 @@ has_line_of_sight :: proc(a, b: vec2) -> bool {
 	coord := math.abs(d.x) > math.abs(d.y) ? 0 : 1 //stepping horizontally or vertically?
 	for i in 0 ..< len(tiles) - 1 {
 		t := tiles[i]
-		if get_tile(t).type == .Wall {
+		if TILE_PROPERTIES[get_tile(t).type].resolve {
 			return false
 		}
 	}
@@ -628,7 +628,7 @@ print_line_of_sight :: proc(a, b: vec2) {
 	blocked := false
 	for i in 0 ..< len(tiles) - 1 {
 		t := tiles[i]
-		if get_tile(t).type == .Wall {
+		if TILE_PROPERTIES[get_tile(t).type].resolve {
 			blocked = true
 		}
 	}
@@ -705,7 +705,7 @@ get_unoptimized_a_star_path :: proc(
 				continue
 			}
 			//skip walls
-			if get_tile(neighbor).type == .Wall {
+			if TILE_PROPERTIES[get_tile(neighbor).type].resolve {
 				continue
 			}
 			maybe_cheapest_path_cost := cheapest_path_cost[current] + 1

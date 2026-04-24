@@ -1,0 +1,137 @@
+package game
+
+//boilerplate / starter code for your game-specific logic in this engine
+//note: this is a TEMPLATE file, made to give a starting point
+//it is not supposed to be compiled or executed here,
+//it's supposed to be part of the `game` package which is inside the `source` folder
+//from root of repo: cp game.odin source
+
+import hm "handle_map_static"
+import rl "vendor:raylib"
+
+GAME_NAME :: "my game"
+
+//object tags
+//these are mostly game-specific boolean tags on objects
+//GameObjects can have any set of these tags, encoded using a bit_set[ObjectTag] called `tags`
+//bit_set is encoded in a 128-bit value, so the max number of tags is 128
+ObjectTag :: enum {
+	//engine-required tags
+	Collide, // if present, the collision system will consider this object in collisions
+	Sprite, // if present, the renderer will draw the sprite / texture data of this object
+	Text, // if present, the renderer will draw the text data of this object
+	CustomDraw, // if present, the renderer will call the custom draw function on this object
+	DoNotSerialize, // if present, saving will not save this object
+	DontDestroyOnLoad, // if present, loading will not reset or overwrite this object
+	Disabled, // if set, systems will skip object as if it has been deleted
+	//user-defined tags
+}
+
+//these types are embedded in the basic types
+//you can think of them as extending the types to what your game needs
+
+//extending Game
+GameSpecificGlobalState :: struct {}
+//extending GameObject
+GameSpecificObjectData :: struct {}
+//extending Tile
+GameSpecificTileData :: struct {}
+
+//object variants
+//in contrast to tags, each object has exactly one variant
+//GameObject has a field called `variant` which is this GameObjectVariant union type
+//this is intended for mutually exclusive types of objects which need their own state fields
+//for example, an enemy might need a max speed, state machine behavior, and an equipped weapon
+//but those things will never apply to a collectible item
+//so Enemy and Collectible can be two variants in the union
+DefaultVariant :: distinct struct{}
+GameObjectVariant :: union {
+	DefaultVariant,
+}
+
+//type constraints to check at runtime (outside of Odin's type system)
+//these will be checked once per frame and print nice errors if violated
+//checks are not very expensive but can be turned off with a flag for release builds
+//for example, you might want to assert that no object ever has both of a pair of tags
+//or that no objects with the DecorativeSprite variant are missing the Sprite tag
+TYPE_ASSERTS := []GameObjectTypeAssert{}
+
+//collision layers
+//you may want some categories of objects to only collide with certain other categories
+//instead of you providing logic inside each collision event to specifically ignore the ones you want,
+//it's simpler and faster to have the collision detection logic not even generate the collision event
+//to that end, you can define categories of objects which the collision system knows about
+CollisionLayer :: enum {
+	Default = 0,
+	Wall, // tilemaps are a special case in this engine
+}
+//which collision layers can hit which others?
+@(rodata)
+COLLISION_MATRIX: [CollisionLayer]bit_set[CollisionLayer] = #partial {
+	.Default = ~{}, //by default, collide with all layers
+}
+
+//named render layers
+//a render layer is really just an index into an array of object handles
+//determining the order in which the game draws things
+//lower indices are drawn first and so end up at the bottom
+//to keep things consistent, I find it helpful to name some of these layers with what they represent in the game world
+RenderLayer :: enum uint {
+	Bottom  = 0,
+	Floor   = NUM_RENDER_LAYERS * 50.0 / 256,
+	Enemy   = NUM_RENDER_LAYERS * 100.0 / 256,
+	Bullet  = NUM_RENDER_LAYERS * 120.0 / 256,
+	Player  = NUM_RENDER_LAYERS * 128.0 / 256,
+	Ceiling = NUM_RENDER_LAYERS * 200.0 / 256,
+	UI      = NUM_RENDER_LAYERS * 240.0 / 256,
+	Top     = NUM_RENDER_LAYERS - 1,
+}
+
+//tilemap tiles are distinct from regular GameObjects in this engine
+//this is because they are by far the most common type of object in practice
+//so benefit more from some optimizations and simplifying assumptions
+//unlike GameObjects, tiles in the tilemap
+//1) are always static - they do not move, and collisions with them have
+//2) are always located at a particular grid cell in the tilemap
+//3) are identical to all other tiles of the same type
+//   there is no tile-specific data at a particular spot in the grid
+//   all that is stored is the tile type id
+//types of tiles
+TileType :: enum {
+	None,
+	Wall,
+}
+//properties of each type of tile
+TILE_PROPERTIES := [TileType]TileTypeInfo {
+	.None = {
+		texture = atlas_textures[.None],
+		render_layer = uint(RenderLayer.Floor),
+		random_rotation = true,
+	},
+	.Wall = {
+		collision = {layer = .Wall, resolve = true, trigger_events = true},
+		texture = atlas_textures[.Rock],
+		render_layer = uint(RenderLayer.Ceiling),
+		wall_render_info = RenderInfo {
+			texture = atlas_textures[.Darkrock],
+			render_layer = uint(RenderLayer.Floor),
+		},
+	},
+}
+
+//I assume you want your game to have a main menu
+//this keeps track of whether you are in the menu or in the game
+MenuState :: enum {
+	InGame,
+	MainMenu,
+}
+
+//game-specific initialization logic (run once when game is started)
+//typically this will be "set up the main menu"
+game_start :: proc(game: ^Game) {}
+
+//game-specific teardown / reset logic
+reset_game :: proc(game: ^Game) {}
+
+//game-specific update logic (run once per frame)
+game_update :: proc(game: ^Game, dt: f64) {}
