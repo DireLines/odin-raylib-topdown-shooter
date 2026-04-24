@@ -212,7 +212,7 @@ game_init_mem :: proc(game: ^Game) {
 
 	rb.init(&measured_frame_times)
 
-	reset_game(game, total = true)
+	reset(game, total = true)
 
 	//init some globals
 	for props, tile_type in TILE_PROPERTIES {
@@ -377,4 +377,21 @@ game_force_reload :: proc() -> bool {
 @(export)
 game_force_restart :: proc() -> bool {
 	return rl.IsKeyPressed(.F6)
+}
+
+reset :: proc(g: ^Game = game, total: bool = false) {
+	if total {
+		hm.clear(&g.objects)
+	} else {
+		clear_except_dont_destroy(&g.objects)
+	}
+	clear(&g.chunks)
+	clear(&g.loaded_chunks)
+	recreate_final_transforms(g)
+	g.frame_counter = 0
+	if g.screen_space_parent_handle.idx == 0 {
+		g.screen_space_parent_handle =
+			spawn_object(GameObject{name = "screen space parent", tags = {.DoNotSerialize, .DontDestroyOnLoad}}).handle
+	}
+	game_reset(g, total)
 }

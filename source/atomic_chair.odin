@@ -576,20 +576,7 @@ clear_except_dont_destroy :: proc(objects: ^GameObjects) {
 	hm.refill_from_list(objects, filtered_objects[:])
 }
 //game-specific teardown / reset logic
-reset_game :: proc(g: ^Game = game, total: bool = false) {
-	if total {
-		hm.clear(&g.objects)
-	} else {
-		clear_except_dont_destroy(&g.objects)
-	}
-	clear(&g.chunks)
-	clear(&g.loaded_chunks)
-	recreate_final_transforms(g)
-	g.frame_counter = 0
-	if g.screen_space_parent_handle.idx == 0 {
-		g.screen_space_parent_handle =
-			spawn_object(GameObject{name = "screen space parent", tags = {.DoNotSerialize, .DontDestroyOnLoad}}).handle
-	}
+game_reset :: proc(g: ^Game = game, total: bool = false) {
 	g.player_handle = {}
 }
 
@@ -1039,7 +1026,7 @@ atomic_chair_update :: proc(dt: f64) {
 }
 
 atomic_chair_stop :: proc() {
-	reset_game()
+	reset()
 }
 
 
