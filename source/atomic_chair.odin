@@ -1081,9 +1081,9 @@ atomic_chair_update :: proc(dt: f64) {
 			bar.max_value = f64(h.max_health)
 			bar.num_ticks = h.max_health
 			if bar.current_value == bar.max_value {
-				bar.tags -= {.CustomDraw}
+				bar.tags += {.Disabled}
 			} else {
-				bar.tags += {.CustomDraw}
+				bar.tags -= {.Disabled}
 			}
 		}
 		for enemy, h in all_objects_with_variant(&it, Enemy) {
@@ -1237,10 +1237,6 @@ game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
 
 	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
 	//if you use function pointers, you must do that here
-	it := object_iter()
-	for obj, h in all_objects_with_variant(&it, UIStatBar) {
-		obj.draw = draw_ui_stat_bar
-	}
 }
 
 obj_to_circle :: proc(h: GameObjectHandle) -> Circle {
