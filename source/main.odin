@@ -212,7 +212,7 @@ game_init_mem :: proc(game: ^Game) {
 
 	rb.init(&measured_frame_times)
 
-	reset_game(game)
+	reset_game(game, total = true)
 
 	//init some globals
 	for props, tile_type in TILE_PROPERTIES {

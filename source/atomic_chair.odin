@@ -105,6 +105,7 @@ Invuln :: struct {
 //for example, an enemy might need a max speed, state machine behavior, and an equipped weapon
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
+DefaultVariant :: distinct struct{}
 Player :: struct {
 	using health_info:  Health,
 	using invuln:       Invuln,
@@ -125,67 +126,6 @@ Bullet :: struct {
 	last_hit_object: Maybe(GameObjectHandle),
 	state:           AliveDeadState,
 }
-UIButton :: struct {
-	min_scale, max_scale: vec2,
-	on_click_start:       proc(info: ButtonCallbackInfo) `cbor:"-"`, //triggered when mouse button down and hovering button
-	on_click:             proc(info: ButtonCallbackInfo) `cbor:"-"`, //triggered when mouse button up and hovering button - most of the time this is what you want
-}
-UISlider :: struct {
-	min_value, current_value, max_value, default_value: f64,
-	left_pos, right_pos:                                f64, //screen coords, for display
-	snap_increment:                                     f64, //0 = no snapping
-	show_percentage:                                    bool,
-	on_set_value:                                       proc(info: SliderCallbackInfo) `cbor:"-"`,
-	handle_handle:                                      GameObjectHandle,
-}
-SliderCallbackInfo :: struct {
-	game:          ^Game,
-	slider:        GameObjectInst(UISlider),
-	slider_handle: GameObjectHandle,
-	new_value:     f64,
-}
-
-//a bar displaying the current value of a stat
-UIStatBar :: struct {
-	min_value, current_value, max_value: f64,
-	disp_length, disp_height:            f64,
-	filled_color, unfilled_color:        rl.Color,
-	num_ticks:                           int,
-
-	// the display behavior for the partially filled tick at the end
-	incomplete_tick_display_mode:        enum {
-		Exact, //fill exact fraction of the tick
-		Round, //round to closest tick
-		Ceil, //round to nearest tick above
-		Floor, // round to nearest tick below
-	},
-
-	//if true, lerp the color of incomplete tick between filled_color and unfilled_color
-	//if false, it will be filled_color
-	interp_tick_color:                   bool,
-}
-default_ui_stat_bar :: proc() -> UIStatBar {
-	return UIStatBar {
-		disp_length = 100,
-		disp_height = 20,
-		filled_color = rl.GREEN,
-		unfilled_color = rl.GRAY,
-		num_ticks = 10,
-		incomplete_tick_display_mode = .Exact,
-		interp_tick_color = false,
-	}
-}
-get_health_bar_def :: proc(h: Health) -> UIStatBar {
-	bar := default_ui_stat_bar()
-	bar.max_value = f64(h.max_health)
-	bar.num_ticks = h.max_health
-	bar.current_value = f64(h.health)
-	bar.incomplete_tick_display_mode = .Ceil
-	bar.interp_tick_color = true
-	bar.unfilled_color = set_alpha(rl.RED, 120)
-	return bar
-}
-DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
 	//engine provided variants
 	DefaultVariant,
@@ -1039,7 +979,7 @@ atomic_chair_update :: proc(dt: f64) {
 						player := get_object(other, Player)
 						if player.state == .Alive {
 							//take damage
-							//TODO have player enter temp invincible state
+							if player.invulnerable {continue}
 							rl.PlaySound(get_sound("hit.wav"))
 							apply_knockback(knockback_vec, player)
 							player_take_damage(player)
@@ -1162,10 +1102,6 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectInst(Bu
 	return spawn_object(bullet, Bullet)
 }
 
-get_axis :: proc(key_neg, key_pos: rl.KeyboardKey) -> f64 {
-	return f64(int(rl.IsKeyDown(key_pos))) - f64(int(rl.IsKeyDown(key_neg)))
-}
-
 apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
 	obj.velocity += knockback
 }
@@ -1219,15 +1155,6 @@ spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
 		music_vol_handle,
 		music_vol_label,
 	}
-}
-
-
-lerp_colors :: proc(a, b: rl.Color, t: f64) -> rl.Color {
-	result: rl.Color
-	#unroll for i in 0 ..< 4 {
-		result[i] = u8(math.lerp(f64(a[i]), f64(b[i]), t))
-	}
-	return result
 }
 
 game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
