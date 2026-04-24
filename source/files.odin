@@ -254,7 +254,7 @@ load_game :: proc(g: ^Game, path: string = "") {
 //unfortunately save/load destroys function pointers, we need to replace the ones we care about
 restore_function_pointers :: proc(game: ^Game = game, save: ^GameSave) {
 	it := hm.make_iter(&game.objects)
-	for obj, h in all_objects_with_variant(&it, UIStatBar) {
+	for obj, h in all_objects_with_variant(&it, UIStatBar, include_disabled = true) {
 		obj.draw = draw_ui_stat_bar
 	}
 }
