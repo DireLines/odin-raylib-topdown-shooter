@@ -29,7 +29,12 @@ GameSpecificTileData :: struct {}
 //so Enemy and Collectible can be two variants in the union
 DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
+	//engine provided variants
 	DefaultVariant,
+	UIButton,
+	UISlider,
+	UIStatBar,
+	//game-specific variants
 }
 
 //object tags
@@ -45,7 +50,7 @@ ObjectTag :: enum {
 	CustomDraw, // if set, the renderer will call the custom draw function on this object
 	DoNotSerialize, // if set, saving will not save this object
 	DontDestroyOnLoad, // if set, loading will not reset or overwrite this object
-	//user-defined tags
+	//game-specific tags
 }
 
 //type constraints to check at runtime (outside of Odin's type system)

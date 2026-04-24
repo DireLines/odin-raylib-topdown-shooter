@@ -37,7 +37,6 @@ ChunkLoadingMode :: enum {
 	Proximity,
 }
 GameSpecificGlobalState :: struct {
-	clicked_ui_object:  Maybe(GameObjectHandle),
 	menu_state:         MenuState,
 	menu_container:     GameObjectHandle,
 	global_tilemap:     Tilemap `cbor:"-"`, //not serialized - too big
@@ -242,7 +241,7 @@ game_start :: proc() {
 		BASIC_ENEMY_COLOR = .Enemy,
 		CHECKPOINT_COLOR  = .Checkpoint,
 	}
-	load_map :: proc() -> (tilemap: Tilemap, player_spawn: TilemapTileId) {
+	load_map :: proc() -> Tilemap {
 		MAP_DATA :: #load("map.png")
 		tiles_img := rl.LoadImageFromMemory(".png", raw_data(MAP_DATA), i32(len(MAP_DATA)))
 		tiles_buf := maps.img_to_buf(tiles_img, transpose = true)
@@ -260,8 +259,20 @@ game_start :: proc() {
 		}
 		return img_to_tilemap(tiles_buf, color_to_tile)
 	}
-	player_spawn_tile: TilemapTileId
-	game.global_tilemap, player_spawn_tile = load_map()
+	find_player_spawn :: proc(tilemap: ^Tilemap) -> TilemapTileId {
+		for r in 0 ..< len(tilemap) {
+			row := tilemap[r]
+			for c in 0 ..< len(row) {
+				tile := tilemap[r][c]
+				if tile.spawn == .Player {
+					return TilemapTileId{r, c}
+				}
+			}
+		}
+		return {}
+	}
+	game.global_tilemap = load_map()
+	player_spawn_tile := find_player_spawn(&game.global_tilemap)
 	game.player_spawn_point = get_tile_center(player_spawn_tile)
 	game.main_camera.position = game.player_spawn_point
 
@@ -413,78 +424,12 @@ main_menu_start :: proc() {
 
 main_menu_update :: proc(dt: f64) {
 	timer := timer()
-	handle_ui_buttons()
-	handle_ui_sliders()
-	timer->time("handle ui")
+	update_ui_buttons()
+	update_ui_sliders()
+	timer->time("update ui")
 	game.main_camera.position += {30, 40} * dt
 	if game.render_counter % 300 == 0 {
 		game.main_camera.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
-	}
-}
-
-handle_ui_buttons :: proc() {
-	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
-	it := object_iter()
-	for button, button_handle in all_objects_with_variant(&it, UIButton) {
-		if game.clicked_ui_object != nil && game.clicked_ui_object != button_handle {continue}
-		screen_aabb := get_texture_aabb_for_object(
-			button.obj,
-			game.final_transforms[button_handle.idx].transform,
-		)
-		hovering := is_point_in_aabb(mouse_screen_pos, screen_aabb)
-		scale_target := button.min_scale
-		if hovering {
-			scale_target = button.max_scale
-		}
-		button.scale *= 1 + (scale_target - button.scale) * 0.1
-		// clicking := hovering && rl.IsMouseButtonDown(.LEFT)
-		if hovering {
-			button.color = PLAYER_MAIN_COLOR
-			button.text_color = rl.BLACK
-		} else {
-			button.color = rl.BLACK
-			button.text_color = PLAYER_MAIN_COLOR
-		}
-		click_started := hovering && rl.IsMouseButtonPressed(.LEFT)
-		if click_started && button.on_click_start != nil {
-			button.on_click_start({game, button, button_handle})
-		}
-		click_released := hovering && rl.IsMouseButtonReleased(.LEFT)
-		if click_released && button.on_click != nil {
-			button.on_click({game, button, button_handle})
-		}
-	}
-}
-
-handle_ui_sliders :: proc() {
-	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
-	it := object_iter()
-	for slider, slider_handle in all_objects_with_variant(&it, UISlider) {
-		if game.clicked_ui_object != slider_handle {continue}
-		handle := get_object(slider.handle_handle, UIButton)
-		frac := (mouse_screen_pos.x - slider.left_pos) / (slider.right_pos - slider.left_pos)
-		frac = clamp(frac, 0, 1)
-		val_target := slider.min_value + frac * (slider.max_value - slider.min_value)
-		if slider.snap_increment > 0 {
-			val_target = math.round(val_target / slider.snap_increment) * slider.snap_increment
-			frac = (val_target - slider.min_value) / (slider.max_value - slider.min_value)
-		}
-		handle.position.x = slider.left_pos + frac * (slider.right_pos - slider.left_pos)
-		handle.text = get_slider_handle_text(frac, val_target, slider.show_percentage)
-		if rl.IsMouseButtonReleased(.LEFT) {
-			game.clicked_ui_object = nil
-			new_value_frac :=
-				(handle.position.x - slider.left_pos) / (slider.right_pos - slider.left_pos)
-			new_value := slider.min_value + new_value_frac * (slider.max_value - slider.min_value)
-			slider.on_set_value(
-				SliderCallbackInfo {
-					game = game,
-					slider = slider,
-					slider_handle = slider_handle,
-					new_value = new_value,
-				},
-			)
-		}
 	}
 }
 
@@ -584,8 +529,8 @@ atomic_chair_update :: proc(dt: f64) {
 	}
 	// main game logic
 	timer := timer()
-	handle_ui_buttons()
-	handle_ui_sliders()
+	update_ui_buttons()
+	update_ui_sliders()
 	if game.paused {
 		//TODO additional pause menu stuff?
 		return

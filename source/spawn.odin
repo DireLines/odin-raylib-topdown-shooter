@@ -162,7 +162,7 @@ spawn_ui_slider :: proc(
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {
 				text = text,
-				text_color = PLAYER_MAIN_COLOR,
+				text_color = UI_MAIN_COLOR,
 				text_alignment = .Right,
 				font_size = UI_MAIN_FONT_SIZE,
 			},

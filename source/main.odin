@@ -24,6 +24,8 @@ global_default_font: rl.Font //in case we need to draw some text but don't have 
 DEFAULT_FONT_SIZE :: 32
 UI_MAIN_FONT_SIZE :: 72
 UI_SECONDARY_FONT_SIZE :: 42
+UI_MAIN_COLOR :: rl.Color{99, 155, 255, 255}
+UI_SECONDARY_COLOR :: rl.BLACK
 PATHFINDING_UPDATE_INTERVAL :: 70
 NUM_RENDER_LAYERS :: 128
 TILE_SIZE :: 150
@@ -125,6 +127,7 @@ Game :: struct {
 	frame_counter:              u64, //simulated frames
 	render_counter:             u64, // frames including renders while game is paused inside of menus and such
 	screen_space_parent_handle: GameObjectHandle, //indicates that an object whose parent handle is this should be drawn in screen space rather than global coords
+	clicked_ui_object:          Maybe(GameObjectHandle),
 	paused, quit:               bool,
 	main_camera:                Transform,
 	using game_specific_state:  GameSpecificGlobalState,

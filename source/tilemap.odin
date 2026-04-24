@@ -51,20 +51,9 @@ get_tilemap_chunk :: proc(id: ChunkId) -> ^TilemapChunk {
 }
 @(private = "file")
 load_tilemap_chunk :: proc(id: ChunkId) -> (tilemap: TilemapChunk) {
-	min_corner, _ := get_tilemap_corners(id)
-	//TODO fix boundary cases - need to wrap each cell of rectangle, not entire slice
-	map_slice := maps.slice_rect_from_slice(
-		&game.global_tilemap,
-		{
-			uint(min_corner.x %% len(game.global_tilemap)),
-			uint(min_corner.y %% len(game.global_tilemap[0])),
-			CHUNK_WIDTH_TILES,
-			CHUNK_HEIGHT_TILES,
-		},
-	)
 	for i in 0 ..< CHUNK_WIDTH_TILES {
 		for j in 0 ..< CHUNK_HEIGHT_TILES {
-			tilemap[i][j] = map_slice[i][j]
+			tilemap[i][j] = Tile{}
 		}
 	}
 	return tilemap
@@ -96,9 +85,7 @@ get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 		}
 		tile := queue[head]
 		head += 1
-
 		chunks[get_containing_chunk_for_tile(tile)] = {}
-
 		for neighbor in get_neighbors(tile) {
 			if neighbor in visited {
 				continue
@@ -151,7 +138,7 @@ TilemapIterator :: struct {
 	min, max: TilemapTileId,
 	curr:     TilemapTileId,
 }
-make_tilemap_iterator :: proc(a, b: TilemapTileId) -> TilemapIterator {
+tilemap_make_iter :: proc(a, b: TilemapTileId) -> TilemapIterator {
 	min: TilemapTileId = linalg.min(a, b)
 	max: TilemapTileId = linalg.max(a, b)
 	return {min = min, max = max, curr = min}
@@ -172,7 +159,7 @@ tilemap_iter :: proc(it: ^TilemapIterator) -> (val: TilemapTileId, has_next: boo
 
 get_tiles_between :: proc(a, b: TilemapTileId) -> []TilemapTileId {
 	result := [dynamic]TilemapTileId{}
-	it := make_tilemap_iterator(a, b)
+	it := tilemap_make_iter(a, b)
 	for tile in tilemap_iter(&it) {
 		append(&result, tile)
 	}
@@ -217,7 +204,6 @@ img_to_tilemap :: proc(
 	color_to_tile: proc(c: rl.Color) -> Tile,
 ) -> (
 	tilemap: Tilemap,
-	player_spawn: TilemapTileId,
 ) {
 	w, h := len(img[0]), len(img)
 	tiles := maps.make_grid_slice(Tile, w, h)
@@ -229,11 +215,8 @@ img_to_tilemap :: proc(
 			if props.random_rotation {
 				tile.rotation = rand.choice_enum(CardinalDirection)
 			}
-			if tile.spawn == .Player {
-				player_spawn = TilemapTileId{r, c}
-			}
 			tiles[r][c] = tile
 		}
 	}
-	return tiles, player_spawn
+	return tiles
 }

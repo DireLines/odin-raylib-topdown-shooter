@@ -486,7 +486,7 @@ render :: proc() {
 		}
 		i := uint(layer_idx)
 		if i in tile_render_layers_used {
-			tiles := make_tilemap_iterator(tile_min, tile_max)
+			tiles := tilemap_make_iter(tile_min, tile_max)
 			for tile_id in tilemap_iter(&tiles) {
 				timer->reset()
 				tile := get_tile(tile_id)

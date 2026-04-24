@@ -502,7 +502,7 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []Collision {
 		offset_threshold :: 1
 		tiles: TilemapIterator
 		tilemap_min, tilemap_max := get_tilemap_corners(obj_bounds)
-		tiles = make_tilemap_iterator(tilemap_min, tilemap_max)
+		tiles = tilemap_make_iter(tilemap_min, tilemap_max)
 		for tile_id in tilemap_iter(&tiles) {
 			tile_props := TILE_PROPERTIES[get_tile(tile_id).type]
 			if !layers_can_collide(tile_props.layer, obj.hitbox.layer) {
