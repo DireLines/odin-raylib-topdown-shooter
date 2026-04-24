@@ -11,6 +11,24 @@ import rl "vendor:raylib"
 
 GAME_NAME :: "my game"
 
+//game-specific initialization logic (run once when game is started)
+//typically this will be "set up the main menu"
+game_start :: proc() {}
+
+//game-specific update logic (run once per frame)
+game_update :: proc(dt: f64) {}
+
+//game-specific teardown / reset logic
+game_reset :: proc(game: ^Game, total: bool = false) {}
+
+//game-specific logic when loading from a save state
+game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
+	game.game_specific_state = save.game_specific_state
+
+	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
+	//if you use function pointers, you must do that here
+}
+
 //these are embedded in the basic structs
 //you can think of them as extending the types with what your game needs
 //extending Game
@@ -67,7 +85,6 @@ TYPE_ASSERTS := []GameObjectTypeAssert{}
 //to that end, you can define categories of objects which the collision system knows about
 CollisionLayer :: enum {
 	Default = 0,
-	Wall, // tilemaps are a special case in this engine
 }
 //which collision layers can hit which others?
 @(rodata)
@@ -76,7 +93,7 @@ COLLISION_MATRIX: [CollisionLayer]bit_set[CollisionLayer] = #partial {
 }
 
 //named render layers
-//a render layer is really just an index into an array of object handles
+//a render layer is really just an index into an array of lists of object handles
 //determining the order in which the game draws things
 //lower indices are drawn first and so end up at the bottom
 //to keep things consistent, I find it helpful to name some of these layers with what they represent in the game world
@@ -103,7 +120,6 @@ RenderLayer :: enum uint {
 //types of tiles
 TileType :: enum {
 	None,
-	Wall,
 }
 //properties of each type of tile
 TILE_PROPERTIES := [TileType]TileTypeInfo {
@@ -112,38 +128,4 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 		render_layer = uint(RenderLayer.Floor),
 		random_rotation = true,
 	},
-	.Wall = {
-		collision = {layer = .Wall, resolve = true, trigger_events = true},
-		texture = atlas_textures[.Rock],
-		render_layer = uint(RenderLayer.Ceiling),
-		wall_render_info = RenderInfo {
-			texture = atlas_textures[.Darkrock],
-			render_layer = uint(RenderLayer.Floor),
-		},
-	},
 }
-
-//I assume you want your game to have a main menu
-//this keeps track of whether you are in the menu or in the game
-MenuState :: enum {
-	InGame,
-	MainMenu,
-}
-
-//game-specific initialization logic (run once when game is started)
-//typically this will be "set up the main menu"
-game_start :: proc() {}
-
-//game-specific teardown / reset logic
-game_reset :: proc(game: ^Game, total: bool = false) {}
-
-//game-specific logic when loading from a save state
-game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
-	game.game_specific_state = save.game_specific_state
-
-	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
-	//if you use function pointers, you must do that here
-}
-
-//game-specific update logic (run once per frame)
-game_update :: proc(dt: f64) {}
