@@ -13,7 +13,7 @@ earshot.exe
 
 odin-raylib
 
-palette_tool
+./palette_tool
 
 *.cbor
 
