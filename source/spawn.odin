@@ -48,7 +48,6 @@ spawn_ui_button :: proc(
 	min_scale :: vec2{3, 0.9}
 	button_obj := GameObject {
 		name = fmt.aprint(text, "button"),
-		text = text,
 		transform = {
 			position = pos,
 			rotation = 0,
@@ -59,7 +58,7 @@ spawn_ui_button :: proc(
 			texture = tex,
 			color = rl.WHITE,
 			render_layer = uint(RenderLayer.UI),
-			text_render_info = {font_size = UI_MAIN_FONT_SIZE},
+			text_render_info = {text = text, font_size = UI_MAIN_FONT_SIZE},
 		},
 		tags = {.Sprite, .Text, .DoNotSerialize, .DontDestroyOnLoad},
 		variant = UIButton {
@@ -93,11 +92,6 @@ spawn_ui_slider :: proc(
 		slider_info.left_pos + default_frac * (slider_info.right_pos - slider_info.left_pos)
 	handle_def := GameObject {
 		name = fmt.aprint(text, "slider handle"),
-		text = get_slider_handle_text(
-			default_frac,
-			slider_info.default_value,
-			slider_info.show_percentage,
-		),
 		transform = {
 			position = {handle_x, pos.y},
 			rotation = 0,
@@ -108,7 +102,15 @@ spawn_ui_slider :: proc(
 			texture = handle_tex,
 			color = rl.WHITE,
 			render_layer = uint(RenderLayer.UI),
-			text_render_info = {font_size = UI_SECONDARY_FONT_SIZE, text_color = rl.BLACK},
+			text_render_info = {
+				text = get_slider_handle_text(
+					default_frac,
+					slider_info.default_value,
+					slider_info.show_percentage,
+				),
+				font_size = UI_SECONDARY_FONT_SIZE,
+				text_color = rl.BLACK,
+			},
 		},
 		tags = {.Sprite, .Text, .DoNotSerialize, .DontDestroyOnLoad},
 		variant = UIButton {
@@ -150,7 +152,6 @@ spawn_ui_slider :: proc(
 	LABEL_PIXEL_PADDING :: 50
 	label_def := GameObject {
 		name = fmt.aprint(text, "slider label"),
-		text = text,
 		transform = {
 			position = {slider_info.left_pos - LABEL_PIXEL_PADDING, pos.y},
 			scale = {1, 1},
@@ -160,6 +161,7 @@ spawn_ui_slider :: proc(
 			color = rl.WHITE,
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {
+				text = text,
 				text_color = PLAYER_MAIN_COLOR,
 				text_alignment = .Right,
 				font_size = UI_MAIN_FONT_SIZE,

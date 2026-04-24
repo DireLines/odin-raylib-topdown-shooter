@@ -31,8 +31,6 @@ ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
 PLAYER_BULLET_TEXTURE :: TextureName.Arrow_Right_Kenney_Board_Game_Icons_128px
 INGAME_UI_PADDING :: 20.0
 
-UI_MAIN_FONT_SIZE :: 72
-UI_SECONDARY_FONT_SIZE :: 42
 
 ChunkLoadingMode :: enum {
 	Room,
@@ -57,13 +55,13 @@ GameSpecificGlobalState :: struct {
 //bit_set is encoded in a 128-bit value, so the max number of tags is 128
 ObjectTag :: enum {
 	//engine-required tags
-	Collide, // if present, the collision system will consider this object in collisions
-	Sprite, // if present, the renderer will draw the sprite / texture data of this object
-	Text, // if present, the renderer will draw the text data of this object
-	CustomDraw, // if present, the renderer will call the custom draw function on this object
-	DoNotSerialize, // if present, saving will not save this object
-	DontDestroyOnLoad, // if present, loading will not reset or overwrite this object
 	Disabled, // if set, systems will skip object as if it has been deleted
+	Collide, // if set, the collision system will consider this object in collisions
+	Sprite, // if set, the renderer will draw the sprite / texture data of this object
+	Text, // if set, the renderer will draw the text data of this object
+	CustomDraw, // if set, the renderer will call the custom draw function on this object
+	DoNotSerialize, // if set, saving will not save this object
+	DontDestroyOnLoad, // if set, loading will not reset or overwrite this object
 	//user-defined tags
 	Bullet,
 	Player,
@@ -140,9 +138,7 @@ GameObjectVariant :: union {
 	Enemy,
 	Bullet,
 }
-GameSpecificObjectData :: struct {
-	text: string,
-}
+GameSpecificObjectData :: struct {}
 
 //type constraints to check at runtime (outside of Odin's type system)
 //these will be checked once per frame and print nice errors if violated
@@ -530,11 +526,9 @@ spawn_player :: proc() -> GameObjectHandle {
 			render_info = {
 				color = rl.WHITE,
 				render_layer = uint(RenderLayer.UI),
-				text_render_info = {
-					font_size = UI_SECONDARY_FONT_SIZE,
-					text_color = PLAYER_MAIN_COLOR,
-					text_alignment = .Left,
-				},
+				font_size = UI_SECONDARY_FONT_SIZE,
+				text_color = PLAYER_MAIN_COLOR,
+				text_alignment = .Left,
 			},
 			tags = {.Text},
 			parent_handle = game.screen_space_parent_handle,
@@ -561,23 +555,6 @@ atomic_chair_start :: proc() {
 	}
 }
 
-clear_except_dont_destroy :: proc(objects: ^GameObjects) {
-	// Zero out the handle map and write objects directly at their saved indices
-	// so that all stored GameObjectHandles remain valid.
-	// Objects tagged DontDestroyOnLoad are preserved across loads; any save entry
-	// whose index collides with one is ignored (with a warning).
-	filtered_objects := make([dynamic]GameObject, context.temp_allocator)
-	{
-		it := hm.make_iter(objects)
-		for obj in hm.iter(&it) {
-			if .DontDestroyOnLoad in obj.tags {
-				append(&filtered_objects, obj^)
-			}
-		}
-	}
-	hm.clear(objects)
-	hm.refill_from_list(objects, filtered_objects[:])
-}
 //game-specific teardown / reset logic
 game_reset :: proc(g: ^Game = game, total: bool = false) {
 	g.player_handle = {}
@@ -1230,4 +1207,15 @@ spawn_checkpoint :: proc(pos: vec2) -> ^GameObject {
 		tags = {.Collide, .Sprite, .Checkpoint},
 	}
 	return spawn_object(checkpoint)
+}
+
+get_health_bar_def :: proc(h: Health) -> UIStatBar {
+	bar := default_ui_stat_bar()
+	bar.max_value = f64(h.max_health)
+	bar.num_ticks = h.max_health
+	bar.current_value = f64(h.health)
+	bar.incomplete_tick_display_mode = .Ceil
+	bar.interp_tick_color = true
+	bar.unfilled_color = set_alpha(rl.RED, 120)
+	return bar
 }

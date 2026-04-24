@@ -22,6 +22,8 @@ SCREEN_PIXELS_PER_WORLD_UNIT: f64 : 0.75 //at initial camera zoom of 1
 MAIN_FONT: FontName : .Atkinson_Hyperlegible_Bold
 global_default_font: rl.Font //in case we need to draw some text but don't have the game in the context
 DEFAULT_FONT_SIZE :: 32
+UI_MAIN_FONT_SIZE :: 72
+UI_SECONDARY_FONT_SIZE :: 42
 PATHFINDING_UPDATE_INTERVAL :: 70
 NUM_RENDER_LAYERS :: 128
 TILE_SIZE :: 150
@@ -30,6 +32,7 @@ CHUNK_WIDTH_TILES :: CHUNK_HEIGHT_TILES * 4
 CHUNK_HEIGHT :: TILE_SIZE * CHUNK_HEIGHT_TILES // world units
 CHUNK_WIDTH :: TILE_SIZE * CHUNK_WIDTH_TILES // world units
 #assert(CHUNK_WIDTH %% TILE_SIZE == 0 && CHUNK_HEIGHT %% TILE_SIZE == 0) //want tiles to fit cleanly into chunks
+
 
 // MAX_HITBOXES_PER_OBJECT :: 6 //TODO
 SMOOTHING_FRAMES :: TARGET_FPS * 5
@@ -394,4 +397,21 @@ reset :: proc(g: ^Game = game, total: bool = false) {
 			spawn_object(GameObject{name = "screen space parent", tags = {.DoNotSerialize, .DontDestroyOnLoad}}).handle
 	}
 	game_reset(g, total)
+	clear_except_dont_destroy :: proc(objects: ^GameObjects) {
+		// Zero out the handle map and write objects directly at their saved indices
+		// so that all stored GameObjectHandles remain valid.
+		// Objects tagged DontDestroyOnLoad are preserved across loads; any save entry
+		// whose index collides with one is ignored (with a warning).
+		filtered_objects := make([dynamic]GameObject, context.temp_allocator)
+		{
+			it := hm.make_iter(objects)
+			for obj in hm.iter(&it) {
+				if .DontDestroyOnLoad in obj.tags {
+					append(&filtered_objects, obj^)
+				}
+			}
+		}
+		hm.clear(objects)
+		hm.refill_from_list(objects, filtered_objects[:])
+	}
 }

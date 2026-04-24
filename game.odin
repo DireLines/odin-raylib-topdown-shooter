@@ -11,25 +11,8 @@ import rl "vendor:raylib"
 
 GAME_NAME :: "my game"
 
-//object tags
-//these are mostly game-specific boolean tags on objects
-//GameObjects can have any set of these tags, encoded using a bit_set[ObjectTag] called `tags`
-//bit_set is encoded in a 128-bit value, so the max number of tags is 128
-ObjectTag :: enum {
-	//engine-required tags
-	Collide, // if present, the collision system will consider this object in collisions
-	Sprite, // if present, the renderer will draw the sprite / texture data of this object
-	Text, // if present, the renderer will draw the text data of this object
-	CustomDraw, // if present, the renderer will call the custom draw function on this object
-	DoNotSerialize, // if present, saving will not save this object
-	DontDestroyOnLoad, // if present, loading will not reset or overwrite this object
-	Disabled, // if set, systems will skip object as if it has been deleted
-	//user-defined tags
-}
-
-//these types are embedded in the basic types
-//you can think of them as extending the types to what your game needs
-
+//these are embedded in the basic structs
+//you can think of them as extending the types with what your game needs
 //extending Game
 GameSpecificGlobalState :: struct {}
 //extending GameObject
@@ -47,6 +30,22 @@ GameSpecificTileData :: struct {}
 DefaultVariant :: distinct struct{}
 GameObjectVariant :: union {
 	DefaultVariant,
+}
+
+//object tags
+//these are mostly game-specific boolean tags on objects
+//GameObjects can have any set of these tags, encoded using a bit_set[ObjectTag] called `tags`
+//bit_set is encoded in a 128-bit value, so the max number of tags is 128
+ObjectTag :: enum {
+	//engine-required tags
+	Disabled, // if set, systems will skip object as if it has been deleted
+	Collide, // if set, the collision system will consider this object in collisions
+	Sprite, // if set, the renderer will draw the sprite / texture data of this object
+	Text, // if set, the renderer will draw the text data of this object
+	CustomDraw, // if set, the renderer will call the custom draw function on this object
+	DoNotSerialize, // if set, saving will not save this object
+	DontDestroyOnLoad, // if set, loading will not reset or overwrite this object
+	//user-defined tags
 }
 
 //type constraints to check at runtime (outside of Odin's type system)
@@ -128,10 +127,18 @@ MenuState :: enum {
 
 //game-specific initialization logic (run once when game is started)
 //typically this will be "set up the main menu"
-game_start :: proc(game: ^Game) {}
+game_start :: proc() {}
 
 //game-specific teardown / reset logic
-reset_game :: proc(game: ^Game) {}
+game_reset :: proc(game: ^Game, total: bool = false) {}
+
+//game-specific logic when loading from a save state
+game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
+	game.game_specific_state = save.game_specific_state
+
+	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
+	//if you use function pointers, you must do that here
+}
 
 //game-specific update logic (run once per frame)
-game_update :: proc(game: ^Game, dt: f64) {}
+game_update :: proc(dt: f64) {}

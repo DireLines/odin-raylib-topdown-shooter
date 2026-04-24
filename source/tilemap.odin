@@ -52,6 +52,7 @@ get_tilemap_chunk :: proc(id: ChunkId) -> ^TilemapChunk {
 @(private = "file")
 load_tilemap_chunk :: proc(id: ChunkId) -> (tilemap: TilemapChunk) {
 	min_corner, _ := get_tilemap_corners(id)
+	//TODO fix boundary cases - need to wrap each cell of rectangle, not entire slice
 	map_slice := maps.slice_rect_from_slice(
 		&game.global_tilemap,
 		{

@@ -34,16 +34,6 @@ default_ui_stat_bar :: proc() -> UIStatBar {
 		interp_tick_color = false,
 	}
 }
-get_health_bar_def :: proc(h: Health) -> UIStatBar {
-	bar := default_ui_stat_bar()
-	bar.max_value = f64(h.max_health)
-	bar.num_ticks = h.max_health
-	bar.current_value = f64(h.health)
-	bar.incomplete_tick_display_mode = .Ceil
-	bar.interp_tick_color = true
-	bar.unfilled_color = set_alpha(rl.RED, 120)
-	return bar
-}
 
 UIButton :: struct {
 	min_scale, max_scale: vec2,

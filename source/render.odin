@@ -38,6 +38,7 @@ TextAlignment :: enum {
 
 //these are Maybes because the zero value is undesirable for all of them, need to know when to use a default
 TextRenderInfo :: struct {
+	text:           string,
 	font:           Maybe(rl.Font) `cbor:"-"`,
 	text_color:     Maybe(rl.Color),
 	font_size:      Maybe(f32),
