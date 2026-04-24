@@ -287,8 +287,8 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 //I assume you want your game to have a main menu
 //this keeps track of whether you are in the menu or in the game
 MenuState :: enum {
-	InGame,
 	MainMenu,
+	InGame,
 }
 
 //game-specific initialization logic (run once when game is started)
@@ -326,71 +326,149 @@ game_start :: proc() {
 	game.player_spawn_point = get_tile_center(player_spawn_tile)
 	game.main_camera.position = game.player_spawn_point
 
+	menu_container := spawn_object(
+		GameObject{name = "menu container", tags = {.DoNotSerialize, .DontDestroyOnLoad}},
+	)
+	game.menu_container = menu_container.handle
 	game.menu_state = .MainMenu
 	main_menu_start()
 }
 
-main_menu_start :: proc() {
-	game.paused = true
-	//spawn buttons
-	titlebar_tex := atlas_textures[.Atomic_Chair_Title]
-	sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
-	titlebar := spawn_object(
-	GameObject {
-		transform = {
-			position = MENU_SCREEN_DIMS * {0.5, 0.1},
-			pivot    = {60, 28.25}, //TODO it *SHOULD* be half the texture width, why is it this?
-			scale    = sc,
+spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
+	container := get_object(container_handle)
+	if "main_menu" not_in container.associated_objects {
+		//spawn buttons
+		titlebar_tex := atlas_textures[.Atomic_Chair_Title]
+		sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
+		titlebar := spawn_object(
+		GameObject {
+			transform = {
+				position = MENU_SCREEN_DIMS * {0.5, 0.1},
+				pivot    = {60, 28.25}, //TODO it *SHOULD* be half the texture width, why is it this?
+				scale    = sc,
+			},
+			parent_handle = game.screen_space_parent_handle,
+			texture = titlebar_tex,
+			render_layer = uint(RenderLayer.UI),
+			color = rl.WHITE,
+			tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
 		},
-		parent_handle = game.screen_space_parent_handle,
-		texture = titlebar_tex,
-		render_layer = uint(RenderLayer.UI),
-		color = rl.WHITE,
-		tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
-	},
-	)
-	play_button := spawn_ui_button(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
-		.White,
-		"PLAY",
-		proc(info: ButtonCallbackInfo) {
-			game := info.game
-			if ODIN_OS == .JS {
-				rl.InitAudioDevice()
-			}
-			main_menu_stop()
-			recreate_final_transforms()
-			game.menu_state = .InGame
-			atomic_chair_start()
-		},
-	)
-	//volume sliders
-	slider_handles := spawn_vol_sliders()
-	//TODO credits button
-	main_menu_objects := [dynamic]GameObjectHandle{play_button.handle, titlebar.handle}
-	for h in slider_handles {
-		append(&main_menu_objects, h)
+		)
+		play_button := spawn_ui_button(
+			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
+			.White,
+			"PLAY",
+			proc(info: ButtonCallbackInfo) {
+				game := info.game
+				if ODIN_OS == .JS {
+					rl.InitAudioDevice()
+				}
+				main_menu_stop()
+				recreate_final_transforms()
+				game.menu_state = .InGame
+				atomic_chair_start()
+			},
+		)
+		//volume sliders
+		slider_handles := spawn_vol_sliders()
+		//TODO credits button
+		main_menu_objects := [dynamic]GameObjectHandle{play_button.handle, titlebar.handle}
+		for h in slider_handles {
+			append(&main_menu_objects, h)
+		}
+		when ODIN_OS != .JS {
+			quit_button := spawn_ui_button(
+				MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
+				.White,
+				"QUIT",
+				proc(info: ButtonCallbackInfo) {
+					game := info.game
+					main_menu_stop()
+					game.quit = true
+				},
+			)
+			append(&main_menu_objects, quit_button.handle)
+		}
+		container.associated_objects["main_menu"] = main_menu_objects
 	}
-	when ODIN_OS != .JS {
-		quit_button := spawn_ui_button(
+	if "pause_menu" not_in container.associated_objects {
+		resume_button := spawn_ui_button(
+			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
+			.White,
+			"RESUME",
+			proc(info: ButtonCallbackInfo) {
+				game := info.game
+				toggle_menu("pause_menu", false)
+				game.paused = false
+			},
+		)
+		//volume sliders
+		slider_handles := spawn_vol_sliders()
+		main_menu_button := spawn_ui_button(
 			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 			.White,
 			"QUIT",
 			proc(info: ButtonCallbackInfo) {
 				game := info.game
-				main_menu_stop()
-				game.quit = true
+				toggle_menu("pause_menu", false)
+				atomic_chair_stop()
+				game.menu_state = .MainMenu
+				main_menu_start()
 			},
 		)
-		append(&main_menu_objects, quit_button.handle)
+		pause_menu_objects := [dynamic]GameObjectHandle {
+			resume_button.handle,
+			main_menu_button.handle,
+		}
+		for h in slider_handles {
+			append(&pause_menu_objects, h)
+		}
+		container.associated_objects["pause_menu"] = pause_menu_objects
 	}
-	menu_container := spawn_object(
-		GameObject {
-			associated_objects = {"main_menu" = main_menu_objects},
-			tags = {.DoNotSerialize, .DontDestroyOnLoad},
-		},
-	)
-	game.menu_container = menu_container.handle
+}
+menu_names :: []string{"main_menu", "pause_menu", "game_over"}
+switch_menu :: proc(menu_name: string) {
+	for name in menu_names {
+		toggle_menu(name, name == menu_name)
+	}
+}
+
+toggle_menu :: proc(menu_name: string, enable: Maybe(bool) = nil) {
+	menu_container, ok := get_object(game.menu_container)
+	if !ok {
+		print("menu container no longer exists")
+		return
+	}
+	spawn_menu_objects(game.menu_container) //idempotent, it's fine to call again
+	enable, should_set := enable.?
+	menu_objects, has_menu := menu_container.associated_objects[menu_name]
+	if !has_menu {
+		print("tried to toggle nonexistent menu", menu_name)
+		return
+	}
+	switch thing in menu_objects {
+	case GameObjectHandle:
+		obj := get_object(thing)
+		if should_set {
+			if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
+		} else {
+			obj.tags ~= {.Disabled}
+		}
+	case [dynamic]GameObjectHandle:
+		for h in thing {
+			obj := get_object(h)
+			if should_set {
+				if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
+			} else {
+				obj.tags ~= {.Disabled}
+			}
+		}
+	}
+}
+
+main_menu_start :: proc() {
+	game.paused = true
+	switch_menu("main_menu")
 }
 
 main_menu_update :: proc(dt: f64) {
@@ -471,15 +549,7 @@ handle_ui_sliders :: proc() {
 }
 
 main_menu_stop :: proc() {
-	menu_container_obj, ok := hm.get(&game.objects, game.menu_container)
-	if !ok {
-		print("menu container handle is invalid")
-		return
-	}
-	main_menu_buttons := menu_container_obj.associated_objects["main_menu"].([dynamic]GameObjectHandle)
-	for button in main_menu_buttons {
-		hm.remove(&game.objects, button)
-	}
+	toggle_menu("main_menu", false)
 }
 
 spawn_player :: proc() -> GameObjectHandle {
@@ -547,54 +617,30 @@ atomic_chair_start :: proc() {
 	}
 }
 
-pause_menu_start :: proc() {
-	resume_button := spawn_ui_button(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
-		.White,
-		"RESUME",
-		proc(info: ButtonCallbackInfo) {
-			game := info.game
-			pause_menu_stop()
-			game.paused = false
-		},
-	)
-	//volume sliders
-	slider_handles := spawn_vol_sliders()
-	main_menu_button := spawn_ui_button(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
-		.White,
-		"QUIT",
-		proc(info: ButtonCallbackInfo) {
-			game := info.game
-			pause_menu_stop()
-			atomic_chair_stop()
-			game.menu_state = .MainMenu
-			main_menu_start()
-		},
-	)
-	pause_menu_objects := [dynamic]GameObjectHandle{resume_button.handle, main_menu_button.handle}
-	for h in slider_handles {
-		append(&pause_menu_objects, h)
+clear_except_dont_destroy :: proc(objects: ^GameObjects) {
+	// Zero out the handle map and write objects directly at their saved indices
+	// so that all stored GameObjectHandles remain valid.
+	// Objects tagged DontDestroyOnLoad are preserved across loads; any save entry
+	// whose index collides with one is ignored (with a warning).
+	filtered_objects := make([dynamic]GameObject, context.temp_allocator)
+	{
+		it := hm.make_iter(objects)
+		for obj in hm.iter(&it) {
+			if .DontDestroyOnLoad in obj.tags {
+				append(&filtered_objects, obj^)
+			}
+		}
 	}
-	menu_container := hm.get(&game.objects, game.menu_container)
-	menu_container.associated_objects["pause_menu"] = pause_menu_objects
+	hm.clear(objects)
+	hm.refill_from_list(objects, filtered_objects[:])
 }
-pause_menu_stop :: proc() {
-	menu_container_obj, ok := hm.get(&game.objects, game.menu_container)
-	if !ok {
-		print("menu container handle is invalid")
-		return
-	}
-	pause_menu_buttons := menu_container_obj.associated_objects["pause_menu"].([dynamic]GameObjectHandle)
-	for button in pause_menu_buttons {
-		hm.remove(&game.objects, button)
-	}
-	free(&menu_container_obj.associated_objects["pause_menu"])
-}
-
 //game-specific teardown / reset logic
-reset_game :: proc(g: ^Game = game) {
-	hm.clear(&g.objects)
+reset_game :: proc(g: ^Game = game, total: bool = false) {
+	if total {
+		hm.clear(&g.objects)
+	} else {
+		clear_except_dont_destroy(&g.objects)
+	}
 	clear(&g.chunks)
 	clear(&g.loaded_chunks)
 	recreate_final_transforms(g)
@@ -617,10 +663,10 @@ atomic_chair_update :: proc(dt: f64) {
 	if rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
 		game.paused = !game.paused
 		if game.paused {
-			pause_menu_start()
+			toggle_menu("pause_menu", true)
 			recreate_final_transforms()
 		} else {
-			pause_menu_stop()
+			toggle_menu("pause_menu", false)
 		}
 	}
 	// main game logic
@@ -1049,7 +1095,6 @@ atomic_chair_update :: proc(dt: f64) {
 }
 
 atomic_chair_stop :: proc() {
-	//TODO save progress
 	reset_game()
 }
 

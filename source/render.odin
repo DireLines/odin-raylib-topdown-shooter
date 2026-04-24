@@ -613,17 +613,22 @@ render :: proc() {
 				}
 				item := game.objects.items[i]
 				text: string
+				color := rl.WHITE
 				if i == 0 || item.handle.idx == 0 {
 					text = fmt.tprintf("%d", i)
+					color = set_alpha(rl.WHITE, 150)
 				} else {
 					text = fmt.tprintf("%d (gen %d) %s", i, item.handle.gen, item.name)
+				}
+				if .Disabled in item.tags {
+					color = set_alpha(rl.WHITE, 150)
 				}
 				rl.DrawText(
 					strings.clone_to_cstring(text, context.temp_allocator),
 					label_pos_x,
 					label_pos_y,
 					FONT_SIZE,
-					rl.WHITE,
+					color,
 				)
 			}
 		}
