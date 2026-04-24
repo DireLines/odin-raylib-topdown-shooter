@@ -526,9 +526,11 @@ spawn_player :: proc() -> GameObjectHandle {
 			render_info = {
 				color = rl.WHITE,
 				render_layer = uint(RenderLayer.UI),
-				font_size = UI_SECONDARY_FONT_SIZE,
-				text_color = PLAYER_MAIN_COLOR,
-				text_alignment = .Left,
+				text_render_info = {
+					font_size = UI_SECONDARY_FONT_SIZE,
+					text_color = PLAYER_MAIN_COLOR,
+					text_alignment = .Left,
+				},
 			},
 			tags = {.Text},
 			parent_handle = game.screen_space_parent_handle,
