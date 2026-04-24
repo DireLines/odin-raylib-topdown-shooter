@@ -1166,3 +1166,12 @@ get_health_bar_def :: proc(h: Health) -> UIStatBar {
 	bar.unfilled_color = set_alpha(rl.RED, 120)
 	return bar
 }
+
+//this is the initial value loaded into the chunk
+//for the current value of the tile, use get_tile
+//called in load_tilemap_chunk
+get_starting_tile :: proc(id: TilemapTileId) -> Tile {
+	tilemap_r := int(id.x %% len(game.global_tilemap)) //edge wrapping
+	tilemap_c := int(id.y %% len(game.global_tilemap[0])) //edge wrapping
+	return game.global_tilemap[tilemap_r][tilemap_c]
+}

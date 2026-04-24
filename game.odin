@@ -129,3 +129,10 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 		random_rotation = true,
 	},
 }
+
+//this is the initial value loaded into the chunk
+//for the current value of the tile, use get_tile
+//called in load_tilemap_chunk
+get_starting_tile :: proc(id: TilemapTileId) -> Tile {
+	return Tile{}
+}

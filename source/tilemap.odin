@@ -51,9 +51,10 @@ get_tilemap_chunk :: proc(id: ChunkId) -> ^TilemapChunk {
 }
 @(private = "file")
 load_tilemap_chunk :: proc(id: ChunkId) -> (tilemap: TilemapChunk) {
+	min_corner, _ := get_tilemap_corners(id)
 	for i in 0 ..< CHUNK_WIDTH_TILES {
 		for j in 0 ..< CHUNK_HEIGHT_TILES {
-			tilemap[i][j] = Tile{}
+			tilemap[i][j] = get_starting_tile(TilemapTileId{min_corner.x + i, min_corner.y + j})
 		}
 	}
 	return tilemap
