@@ -10,7 +10,6 @@ import hm "handle_map_static"
 import maps "mapgen"
 import rl "vendor:raylib"
 
-//boilerplate / starter code for your game-specific logic in this engine
 GAME_NAME :: "atomic chair"
 MENU_BUTTON_SPACING :: 0.15
 MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
@@ -30,204 +29,6 @@ ENEMY_LINEAR_DRAG :: 5.0
 ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
 PLAYER_BULLET_TEXTURE :: TextureName.Arrow_Right_Kenney_Board_Game_Icons_128px
 INGAME_UI_PADDING :: 20.0
-
-
-ChunkLoadingMode :: enum {
-	Room,
-	Proximity,
-}
-GameSpecificGlobalState :: struct {
-	menu_state:         MenuState,
-	menu_container:     GameObjectHandle,
-	global_tilemap:     Tilemap `cbor:"-"`, //not serialized - too big
-	chunk_loading_mode: ChunkLoadingMode,
-	//we load the map immediately, but need to remember
-	//where to spawn the player when the player object is spawned later
-	player_spawn_point: vec2,
-	player_handle:      GameObjectHandle,
-	color_to_tiletype:  map[rl.Color]TileType,
-	color_to_spawn:     map[rl.Color]SpawnType,
-}
-//object tags
-//these are mostly game-specific boolean tags on objects
-//GameObjects can have any set of these tags, encoded using a bit_set[ObjectTag] called `tags`
-//bit_set is encoded in a 128-bit value, so the max number of tags is 128
-ObjectTag :: enum {
-	//engine-required tags
-	Disabled, // if set, systems will skip object as if it has been deleted
-	Collide, // if set, the collision system will consider this object in collisions
-	Sprite, // if set, the renderer will draw the sprite / texture data of this object
-	Text, // if set, the renderer will draw the text data of this object
-	CustomDraw, // if set, the renderer will call the custom draw function on this object
-	DoNotSerialize, // if set, saving will not save this object
-	DontDestroyOnLoad, // if set, loading will not reset or overwrite this object
-	//user-defined tags
-	Bullet,
-	Player,
-	Enemy,
-	Checkpoint,
-}
-
-//types needed for tilemap
-SpawnType :: enum {
-	None,
-	Player,
-	Enemy,
-	Checkpoint,
-}
-GameSpecificTileData :: struct {
-	spawn: SpawnType,
-}
-
-//types needed in variants
-AliveDeadState :: enum {
-	Alive,
-	Dead,
-}
-EnemyState :: enum {
-	Alive_Inactive,
-	Alive_Active,
-	Dead,
-}
-Health :: struct {
-	health, max_health: int,
-	health_bar:         GameObjectHandle,
-}
-Invuln :: struct {
-	invulnerable:                           bool,
-	invuln_cooldown, invuln_time_remaining: f64,
-}
-
-//object variants
-//in contrast to tags, each object has exactly one variant
-//GameObject has a field called `variant` which is this GameObjectVariant union type
-//this is intended for mutually exclusive types of objects which need their own state fields
-//for example, an enemy might need a max speed, state machine behavior, and an equipped weapon
-//but those things will never apply to a collectible item
-//so Enemy and Collectible can be two variants in the union
-Player :: struct {
-	using health_info:  Health,
-	using invuln:       Invuln,
-	state:              AliveDeadState,
-	score:              int,
-	score_label_handle: GameObjectHandle,
-	current_chunk:      ChunkId,
-}
-Enemy :: struct {
-	using health_info: Health,
-	spawn_point:       vec2,
-	state:             EnemyState,
-	type:              EnemyType,
-	pathfind_index:    uint,
-	path:              TilePath,
-}
-Bullet :: struct {
-	last_hit_object: Maybe(GameObjectHandle),
-	state:           AliveDeadState,
-}
-DefaultVariant :: distinct struct{}
-GameObjectVariant :: union {
-	//engine provided variants
-	DefaultVariant,
-	UIButton,
-	UISlider,
-	UIStatBar,
-	//game-specific variants
-	Player,
-	Enemy,
-	Bullet,
-}
-GameSpecificObjectData :: struct {}
-
-//type constraints to check at runtime (outside of Odin's type system)
-//these will be checked once per frame and print nice errors if violated
-//checks are not very expensive but can be turned off with a flag for release builds
-//for example, you might want to assert that no object ever has both of a pair of tags
-//or that no objects with the DecorativeSprite variant are missing the Sprite tag
-TYPE_ASSERTS := []GameObjectTypeAssert{TagCollisionLayerAssert{.Bullet, .Bullet, false, true}}
-
-//collision layers
-//you may want some categories of objects to only collide with certain other categories
-//instead of you providing logic inside each collision event to specifically ignore the ones you want,
-//it's simpler and faster to have the collision detection logic not even generate the collision event
-//to that end, you can define categories of objects which the collision system knows about
-CollisionLayer :: enum {
-	Default = 0,
-	Player,
-	Enemy,
-	Wall,
-	Bullet,
-	PlayerBullet,
-	EnemyBullet,
-}
-//which collision layers can hit which others?
-@(rodata)
-COLLISION_MATRIX: [CollisionLayer]bit_set[CollisionLayer] = #partial {
-	.Default      = ~{}, //by default, collide with all layers
-	.Wall         = {.Player, .PlayerBullet, .Bullet, .Enemy, .EnemyBullet},
-	.Player       = {.Wall, .Enemy, .EnemyBullet},
-	.PlayerBullet = {.Enemy, .Wall},
-	.Bullet       = {.Wall, .Player, .Enemy},
-	.Enemy        = {.Wall, .Player, .PlayerBullet},
-	.EnemyBullet  = {.Player, .Wall},
-}
-
-//named render layers
-//a render layer is really just an index into an array of object handles
-//determining the order in which the game draws things
-//lower indices are drawn first and so end up at the bottom
-//to keep things consistent, I find it helpful to name some of these layers with what they represent in the game world
-RenderLayer :: enum uint {
-	Bottom  = 0,
-	Floor   = NUM_RENDER_LAYERS * 50.0 / 256,
-	Wall    = NUM_RENDER_LAYERS * 52.0 / 256,
-	Enemy   = NUM_RENDER_LAYERS * 100.0 / 256,
-	Player  = NUM_RENDER_LAYERS * 120.0 / 256,
-	Bullet  = NUM_RENDER_LAYERS * 128.0 / 256,
-	Ceiling = NUM_RENDER_LAYERS * 200.0 / 256,
-	UI      = NUM_RENDER_LAYERS * 240.0 / 256,
-	Top     = NUM_RENDER_LAYERS - 1,
-}
-
-//tilemap tiles are distinct from regular GameObjects in this engine
-//this is because they are by far the most common type of object in practice
-//so benefit more from some optimizations and simplifying assumptions
-//unlike GameObjects, tiles in the tilemap
-//1) are always static - they do not move, and collisions with them have
-//2) are always located at a particular grid cell in the tilemap
-//3) are identical to all other tiles of the same type
-//   there is no tile-specific data at a particular spot in the grid
-//   all that is stored is the tile type id
-//types of tiles
-TileType :: enum {
-	None,
-	Wall,
-}
-//properties of each type of tile
-TILE_PROPERTIES := [TileType]TileTypeInfo {
-	.None = {
-		texture      = atlas_textures[.Block_Strong_Empty_Kenney_New_Platformer_Pack_1_1_Large],
-		render_layer = uint(RenderLayer.Floor),
-		color        = {128, 128, 128, 255},
-		// random_rotation = true,
-	},
-	.Wall = {
-		collision = {layer = .Wall, resolve = true, trigger_events = true},
-		texture = atlas_textures[.Block_Green_Kenney_New_Platformer_Pack_1_1_Large],
-		render_layer = uint(RenderLayer.Ceiling),
-		wall_render_info = RenderInfo {
-			texture = atlas_textures[.Darkrock],
-			render_layer = uint(RenderLayer.Floor),
-		},
-	},
-}
-
-//I assume you want your game to have a main menu
-//this keeps track of whether you are in the menu or in the game
-MenuState :: enum {
-	MainMenu,
-	InGame,
-}
 
 //game-specific initialization logic (run once when game is started)
 //typically this will be "set up the main menu"
@@ -283,6 +84,556 @@ game_start :: proc() {
 	game.menu_state = .MainMenu
 	main_menu_start()
 }
+
+//game-specific update logic (run once per frame)
+game_update :: proc(dt: f64) {
+	switch game.menu_state {
+	case .InGame:
+		atomic_chair_update(dt)
+	case .MainMenu:
+		main_menu_update(dt)
+	}
+}
+
+//game-specific teardown / reset logic
+game_reset :: proc(g: ^Game = game, total: bool = false) {
+	g.player_handle = {}
+}
+//game-specific logic when loading from a save state
+game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
+	curr_global_tilemap := game.global_tilemap
+	game.game_specific_state = save.game_specific_state
+	game.global_tilemap = curr_global_tilemap
+
+	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
+	//if you use function pointers, you must do that here
+}
+
+//these are embedded in the basic structs
+//you can think of them as extending the types with what your game needs
+//extending Game
+GameSpecificGlobalState :: struct {
+	menu_state:         MenuState,
+	menu_container:     GameObjectHandle,
+	global_tilemap:     Tilemap `cbor:"-"`, //not serialized - too big
+	chunk_loading_mode: ChunkLoadingMode,
+	//we load the map immediately, but need to remember
+	//where to spawn the player when the player object is spawned later
+	player_spawn_point: vec2,
+	player_handle:      GameObjectHandle,
+	color_to_tiletype:  map[rl.Color]TileType,
+	color_to_spawn:     map[rl.Color]SpawnType,
+}
+ChunkLoadingMode :: enum {
+	Room,
+	Proximity,
+}
+MenuState :: enum {
+	MainMenu,
+	InGame,
+}
+//extending GameFrameData
+GameSpecificFrameData :: struct {}
+//extending GameObject
+GameSpecificObjectData :: struct {}
+//extending Tile
+GameSpecificTileData :: struct {
+	spawn: SpawnType,
+}
+SpawnType :: enum {
+	None,
+	Player,
+	Enemy,
+	Checkpoint,
+}
+
+//types needed in variants
+AliveDeadState :: enum {
+	Alive,
+	Dead,
+}
+EnemyState :: enum {
+	Alive_Inactive,
+	Alive_Active,
+	Dead,
+}
+Health :: struct {
+	health, max_health: int,
+	health_bar:         GameObjectHandle,
+}
+Invuln :: struct {
+	invulnerable:                           bool,
+	invuln_cooldown, invuln_time_remaining: f64,
+}
+EnemyType :: enum {
+	Basic,
+}
+
+//object variants
+//in contrast to tags, each object has exactly one variant
+//GameObject has a field called `variant` which is this GameObjectVariant union type
+//this is intended for mutually exclusive types of objects which need their own state fields
+//for example, an enemy might need a max speed, state machine behavior, and an equipped weapon
+//but those things will never apply to a collectible item
+//so Enemy and Collectible can be two variants in the union
+Player :: struct {
+	using health_info:  Health,
+	using invuln:       Invuln,
+	state:              AliveDeadState,
+	score:              int,
+	score_label_handle: GameObjectHandle,
+	current_chunk:      ChunkId,
+}
+Enemy :: struct {
+	using health_info: Health,
+	spawn_point:       vec2,
+	state:             EnemyState,
+	type:              EnemyType,
+	pathfind_index:    uint,
+	path:              TilePath,
+}
+Bullet :: struct {
+	last_hit_object: Maybe(GameObjectHandle),
+	state:           AliveDeadState,
+}
+DefaultVariant :: distinct struct{}
+GameObjectVariant :: union {
+	//engine provided variants
+	DefaultVariant,
+	UIButton,
+	UISlider,
+	UIStatBar,
+	//game-specific variants
+	Player,
+	Enemy,
+	Bullet,
+}
+
+//object tags
+//these are mostly game-specific boolean tags on objects
+//GameObjects can have any set of these tags, encoded using a bit_set[ObjectTag] called `tags`
+//bit_set is encoded in a 128-bit value, so the max number of tags is 128
+ObjectTag :: enum {
+	//engine-required tags
+	Disabled, // if set, systems will skip object as if it has been deleted
+	Collide, // if set, the collision system will consider this object in collisions
+	Sprite, // if set, the renderer will draw the sprite / texture data of this object
+	Text, // if set, the renderer will draw the text data of this object
+	CustomDraw, // if set, the renderer will call the custom draw function on this object
+	DoNotSerialize, // if set, saving will not save this object
+	DontDestroyOnLoad, // if set, loading will not reset or overwrite this object
+	//user-defined tags
+	Bullet,
+	Player,
+	Enemy,
+	Checkpoint,
+}
+
+
+//type constraints to check at runtime (outside of Odin's type system)
+//these will be checked once per frame and print nice errors if violated
+//checks are not very expensive but can be turned off with a flag for release builds
+//for example, you might want to assert that no object ever has both of a pair of tags
+//or that no objects with the DecorativeSprite variant are missing the Sprite tag
+TYPE_ASSERTS := []GameObjectTypeAssert{TagCollisionLayerAssert{.Bullet, .Bullet, false, true}}
+
+//collision layers
+//you may want some categories of objects to only collide with certain other categories
+//instead of you providing logic inside each collision event to specifically ignore the ones you want,
+//it's simpler and faster to have the collision detection logic not even generate the collision event
+//to that end, you can define categories of objects which the collision system knows about
+CollisionLayer :: enum {
+	Default = 0,
+	Player,
+	Enemy,
+	Wall,
+	Bullet,
+	PlayerBullet,
+	EnemyBullet,
+}
+//which collision layers can hit which others?
+@(rodata)
+COLLISION_MATRIX: [CollisionLayer]bit_set[CollisionLayer] = #partial {
+	.Default      = ~{}, //by default, collide with all layers
+	.Wall         = {.Player, .PlayerBullet, .Bullet, .Enemy, .EnemyBullet},
+	.Player       = {.Wall, .Enemy, .EnemyBullet},
+	.PlayerBullet = {.Enemy, .Wall},
+	.Bullet       = {.Wall, .Player, .Enemy},
+	.Enemy        = {.Wall, .Player, .PlayerBullet},
+	.EnemyBullet  = {.Player, .Wall},
+}
+
+//named render layers
+//a render layer is really just an index into an array of lists of object handles
+//determining the order in which the game draws things
+//lower indices are drawn first and so end up at the bottom
+//to keep things consistent, I find it helpful to name some of these layers with what they represent in the game world
+RenderLayer :: enum uint {
+	Bottom  = 0,
+	Floor   = NUM_RENDER_LAYERS * 50.0 / 256,
+	Wall    = NUM_RENDER_LAYERS * 52.0 / 256,
+	Enemy   = NUM_RENDER_LAYERS * 100.0 / 256,
+	Player  = NUM_RENDER_LAYERS * 120.0 / 256,
+	Bullet  = NUM_RENDER_LAYERS * 128.0 / 256,
+	Ceiling = NUM_RENDER_LAYERS * 200.0 / 256,
+	UI      = NUM_RENDER_LAYERS * 240.0 / 256,
+	Top     = NUM_RENDER_LAYERS - 1,
+}
+
+//tilemap tiles are distinct from regular GameObjects in this engine
+//this is because they are by far the most common type of object in practice
+//so benefit more from some optimizations and simplifying assumptions
+//unlike GameObjects, tiles in the tilemap
+//1) are always static - they do not move, and collisions with them have
+//2) are always located at a particular grid cell in the tilemap
+//3) are identical to all other tiles of the same type
+//   there is no tile-specific data at a particular spot in the grid
+//   all that is stored is the tile type id
+//types of tiles
+TileType :: enum {
+	None,
+	Wall,
+}
+//properties of each type of tile
+TILE_PROPERTIES := [TileType]TileTypeInfo {
+	.None = {
+		texture      = atlas_textures[.Block_Strong_Empty_Kenney_New_Platformer_Pack_1_1_Large],
+		render_layer = uint(RenderLayer.Floor),
+		color        = {128, 128, 128, 255},
+		// random_rotation = true,
+	},
+	.Wall = {
+		collision = {layer = .Wall, resolve = true, trigger_events = true},
+		texture = atlas_textures[.Block_Green_Kenney_New_Platformer_Pack_1_1_Large],
+		render_layer = uint(RenderLayer.Ceiling),
+		wall_render_info = RenderInfo {
+			texture = atlas_textures[.Darkrock],
+			render_layer = uint(RenderLayer.Floor),
+		},
+	},
+}
+
+//this is the initial value loaded into the chunk
+//for the current value of the tile, use get_tile
+//called in load_tilemap_chunk
+get_starting_tile :: proc(id: TilemapTileId) -> Tile {
+	tilemap_r := int(id.x %% len(game.global_tilemap)) //edge wrapping
+	tilemap_c := int(id.y %% len(game.global_tilemap[0])) //edge wrapping
+	return game.global_tilemap[tilemap_r][tilemap_c]
+}
+
+//enforce circles do not penetrate by adding to velocity
+circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
+	a_h, b_h := a, b
+	a_c, b_c := obj_to_circle(a), obj_to_circle(b)
+	if a_c.radius < b_c.radius {
+		a_h, b_h = b, a
+		a_c, b_c = b_c, a_c
+	}
+	assert(a_c.radius >= b_c.radius)
+	diff := b_c.pos - a_c.pos
+	if diff == {0, 0} {
+		epsilon :: 0.0001
+		diff.x += epsilon
+	}
+	dist := linalg.length(diff)
+	sum_radii := abs(a_c.radius) + abs(b_c.radius)
+	if sum_radii == 0 { 	//degenerate case - avoid div by zero
+		return
+	}
+	overlap := sum_radii - dist
+	if overlap <= 0 { 	//circles do not overlap
+		return
+	}
+	diff_unit := linalg.normalize(diff)
+	overlap_start := a_c.pos + diff_unit * b_c.radius
+	overlap_end := overlap_start + diff_unit * overlap
+	//assuming objects are equal density rigidbodies, correct resolution is to put them at a distance proportional to their radii along the overlap
+	point_of_touch := math.lerp(overlap_start, overlap_end, (a_c.radius / sum_radii))
+	//TODO(dry): helper function
+	{
+		c_new_pos := point_of_touch - diff_unit * a_c.radius
+		pos_diff := c_new_pos - a_c.pos
+		obj, ok := hm.get(&game.objects, a_h)
+		obj.inst_velocity += -pos_diff
+	}
+	{
+		c_new_pos := point_of_touch - diff_unit * b_c.radius
+		pos_diff := c_new_pos - b_c.pos
+		obj, ok := hm.get(&game.objects, b_h)
+		obj.inst_velocity += -pos_diff
+	}
+}
+
+spawn_checkpoint :: proc(pos: vec2) -> ^GameObject {
+	CHECKPOINT_SIZE :: vec2{TILE_SIZE, TILE_SIZE}
+	tex := atlas_textures[.White]
+	checkpoint := GameObject {
+		name = fmt.aprint("checkpoint"),
+		transform = {position = pos, scale = {1, 1}, pivot = CHECKPOINT_SIZE / 2},
+		render_info = {
+			texture = tex,
+			color = set_alpha(PLAYER_MAIN_COLOR, 100),
+			render_layer = uint(RenderLayer.Ceiling),
+		},
+		hitbox = {shape = AABB{min = -CHECKPOINT_SIZE / 2, max = CHECKPOINT_SIZE / 2}},
+		tags = {.Collide, .Sprite, .Checkpoint},
+	}
+	return spawn_object(checkpoint)
+}
+
+get_health_bar_def :: proc(h: Health) -> UIStatBar {
+	bar := default_ui_stat_bar()
+	bar.max_value = f64(h.max_health)
+	bar.num_ticks = h.max_health
+	bar.current_value = f64(h.health)
+	bar.incomplete_tick_display_mode = .Ceil
+	bar.interp_tick_color = true
+	bar.unfilled_color = set_alpha(rl.RED, 120)
+	return bar
+}
+
+spawn_player :: proc() -> GameObjectHandle {
+	player_def := GameObject {
+		name = "player",
+		transform = {
+			position = game.player_spawn_point,
+			rotation = 0,
+			scale = {1.4, 1.4},
+			pivot = {64, 128},
+		},
+		linear_drag = PLAYER_LINEAR_DRAG,
+		hitbox = {layer = .Player, shape = AABB{{-40, -60}, {40, 74}}}, //relative to object's pivot
+		render_info = {
+			color = rl.WHITE,
+			texture = atlas_textures[.Squatman0],
+			render_layer = uint(RenderLayer.Player),
+			include_transparent_border = true,
+			keep_original_dimensions = true,
+		},
+		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
+		tags = {.Player, .Collide, .Sprite},
+		variant = Player{health = 6, max_health = 6, state = .Alive, invuln_cooldown = 1.0},
+	}
+	player := spawn_object(player_def, Player)
+	{
+		score_label := GameObject {
+			name = "score label",
+			transform = {
+				position = {INGAME_UI_PADDING, INGAME_UI_PADDING},
+				scale = {1, 1},
+				pivot = {0, 0},
+			},
+			render_info = {
+				color = rl.WHITE,
+				render_layer = uint(RenderLayer.UI),
+				text_render_info = {
+					font_size = UI_SECONDARY_FONT_SIZE,
+					text_color = PLAYER_MAIN_COLOR,
+					text_alignment = .Left,
+				},
+			},
+			tags = {.Text},
+			parent_handle = game.screen_space_parent_handle,
+		}
+		player.score_label_handle = spawn_object(score_label).handle
+	}
+	{
+		health_bar_def := get_health_bar_def(player.health_info)
+		PLAYER_HEALTH_BAR_LENGTH :: 500
+		health_bar_def.disp_length = PLAYER_HEALTH_BAR_LENGTH
+		health_bar_def.disp_height = 30
+		player.health_bar =
+			spawn_ui_stat_bar("player health", {WINDOW_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10}, game.screen_space_parent_handle, health_bar_def).handle
+	}
+	return player.handle
+}
+
+spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
+	enemy_obj := GameObject {
+		name = "enemy",
+		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
+		tags = {.Enemy, .Collide, .Sprite},
+		hitbox = {layer = .Enemy, shape = Circle{{0, 0}, 45}}, //relative to object's pivot
+		linear_drag = ENEMY_LINEAR_DRAG,
+		render_layer = uint(RenderLayer.Enemy),
+		variant = Enemy {
+			health_info = {health = 3, max_health = 3},
+			spawn_point = pos,
+			state = .Alive_Inactive,
+			type = enemy_type,
+			pathfind_index = rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
+		},
+	}
+	enemy := spawn_object(enemy_obj, Enemy)
+	enemy.texture = atlas_textures[.Enemy_Face]
+	enemy.color = rl.WHITE
+	obj_name := "enemy"
+	//TODO other stuff that varies per enemy type like different textures / animation states
+	switch enemy_type {
+	case .Basic:
+		obj_name = "basic enemy"
+	}
+	enemy.name = fmt.aprint(obj_name)
+	{
+		health_bar_def := get_health_bar_def(enemy.health_info)
+		enemy.health_bar =
+			spawn_ui_stat_bar(fmt.aprint(obj_name, "health"), {-64, -70}, enemy.handle, health_bar_def).handle
+	}
+	return enemy.handle
+}
+
+spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectInst(Bullet) {
+	//shoot bullet
+	tex := atlas_textures[PLAYER_BULLET_TEXTURE]
+	tex_dims := vec2{tex.rect.width, tex.rect.height}
+	scale := vec2{0.24, 0.24}
+	bullet := GameObject {
+		name = fmt.aprint("bullet"),
+		transform = {
+			position = pos,
+			rotation = math.to_degrees_f64(math.atan2(vel.y, vel.x)),
+			scale = scale,
+			pivot = (tex_dims / 2),
+		},
+		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
+		velocity = vel,
+		hitbox = {layer = layer, shape = Circle{pos = {}, radius = tex_dims.x / 2}},
+		tags = {.Bullet, .Collide, .Sprite},
+		variant = Bullet{nil, .Alive},
+	}
+	return spawn_object(bullet, Bullet)
+}
+
+apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
+	obj.velocity += knockback
+}
+
+play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
+	rl.SetSoundVolume(sound, volume)
+	rl.PlaySound(sound)
+}
+
+spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
+	master_vol_slider, master_vol_handle, master_vol_label := spawn_ui_slider(
+		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2.75},
+		.White,
+		"VOL",
+		UISlider {
+			min_value = 0,
+			max_value = 2,
+			snap_increment = 0.2,
+			show_percentage = true,
+			default_value = f64(rl.GetMasterVolume()),
+			current_value = f64(rl.GetMasterVolume()),
+			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
+			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
+			on_set_value = proc(info: SliderCallbackInfo) {
+				rl.SetMasterVolume(f32(info.new_value))
+				rl.PlaySound(get_sound("hit.wav"))
+			},
+		},
+	)
+	music_vol_slider, music_vol_handle, music_vol_label := spawn_ui_slider(
+	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3.25},
+	.White,
+	"MUSIC",
+	UISlider {
+		min_value = 0,
+		max_value = 2,
+		snap_increment = 0.2,
+		show_percentage = true,
+		//TODO use rl.SetMusicVolume() on global music object
+		left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
+		right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
+		on_set_value = proc(info: SliderCallbackInfo) {},
+	},
+	)
+	return [6]GameObjectHandle {
+		master_vol_slider,
+		master_vol_handle,
+		master_vol_label,
+		music_vol_slider,
+		music_vol_handle,
+		music_vol_label,
+	}
+}
+
+obj_to_circle :: proc(h: GameObjectHandle) -> Circle {
+	obj := hm.get(&game.objects, h)
+	circle: Circle
+	switch shape in obj.hitbox.shape {
+	case AABB:
+		circle = {
+			pos    = local_to_world(h, obj.pivot),
+			radius = aabb_to_rect(shape).width / 2,
+		}
+	case Circle:
+		circle = shape
+	}
+	return circle
+}
+
+main_menu_start :: proc() {
+	game.paused = true
+	switch_menu("main_menu")
+}
+
+main_menu_update :: proc(dt: f64) {
+	timer := timer()
+	update_ui_buttons()
+	update_ui_sliders()
+	timer->time("update ui")
+	game.main_camera.position += {30, 40} * dt
+	if game.render_counter % 300 == 0 {
+		game.main_camera.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
+	}
+}
+
+main_menu_stop :: proc() {
+	toggle_menu("main_menu", false)
+}
+
+menu_names :: []string{"main_menu", "pause_menu", "game_over"}
+switch_menu :: proc(menu_name: string) {
+	for name in menu_names {
+		toggle_menu(name, name == menu_name)
+	}
+}
+
+toggle_menu :: proc(menu_name: string, enable: Maybe(bool) = nil) {
+	menu_container, ok := get_object(game.menu_container)
+	if !ok {
+		print("menu container no longer exists")
+		return
+	}
+	spawn_menu_objects(game.menu_container) //idempotent, it's fine to call again
+	enable, should_set := enable.?
+	menu_objects, has_menu := menu_container.associated_objects[menu_name]
+	if !has_menu {
+		print("tried to toggle nonexistent menu", menu_name)
+		return
+	}
+	switch thing in menu_objects {
+	case GameObjectHandle:
+		obj := get_object(thing)
+		if should_set {
+			if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
+		} else {
+			obj.tags ~= {.Disabled}
+		}
+	case [dynamic]GameObjectHandle:
+		for h in thing {
+			obj := get_object(h)
+			if should_set {
+				if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
+			} else {
+				obj.tags ~= {.Disabled}
+			}
+		}
+	}
+}
+
 
 spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
 	container := get_object(container_handle)
@@ -377,121 +728,6 @@ spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
 		container.associated_objects["pause_menu"] = pause_menu_objects
 	}
 }
-menu_names :: []string{"main_menu", "pause_menu", "game_over"}
-switch_menu :: proc(menu_name: string) {
-	for name in menu_names {
-		toggle_menu(name, name == menu_name)
-	}
-}
-
-toggle_menu :: proc(menu_name: string, enable: Maybe(bool) = nil) {
-	menu_container, ok := get_object(game.menu_container)
-	if !ok {
-		print("menu container no longer exists")
-		return
-	}
-	spawn_menu_objects(game.menu_container) //idempotent, it's fine to call again
-	enable, should_set := enable.?
-	menu_objects, has_menu := menu_container.associated_objects[menu_name]
-	if !has_menu {
-		print("tried to toggle nonexistent menu", menu_name)
-		return
-	}
-	switch thing in menu_objects {
-	case GameObjectHandle:
-		obj := get_object(thing)
-		if should_set {
-			if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
-		} else {
-			obj.tags ~= {.Disabled}
-		}
-	case [dynamic]GameObjectHandle:
-		for h in thing {
-			obj := get_object(h)
-			if should_set {
-				if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
-			} else {
-				obj.tags ~= {.Disabled}
-			}
-		}
-	}
-}
-
-main_menu_start :: proc() {
-	game.paused = true
-	switch_menu("main_menu")
-}
-
-main_menu_update :: proc(dt: f64) {
-	timer := timer()
-	update_ui_buttons()
-	update_ui_sliders()
-	timer->time("update ui")
-	game.main_camera.position += {30, 40} * dt
-	if game.render_counter % 300 == 0 {
-		game.main_camera.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
-	}
-}
-
-main_menu_stop :: proc() {
-	toggle_menu("main_menu", false)
-}
-
-spawn_player :: proc() -> GameObjectHandle {
-	player_def := GameObject {
-		name = "player",
-		transform = {
-			position = game.player_spawn_point,
-			rotation = 0,
-			scale = {1.4, 1.4},
-			pivot = {64, 128},
-		},
-		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, shape = AABB{{-40, -60}, {40, 74}}}, //relative to object's pivot
-		render_info = {
-			color = rl.WHITE,
-			texture = atlas_textures[.Squatman0],
-			render_layer = uint(RenderLayer.Player),
-			include_transparent_border = true,
-			keep_original_dimensions = true,
-		},
-		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
-		tags = {.Player, .Collide, .Sprite},
-		variant = Player{health = 6, max_health = 6, state = .Alive, invuln_cooldown = 1.0},
-	}
-	player := spawn_object(player_def, Player)
-	{
-		score_label := GameObject {
-			name = "score label",
-			transform = {
-				position = {INGAME_UI_PADDING, INGAME_UI_PADDING},
-				scale = {1, 1},
-				pivot = {0, 0},
-			},
-			render_info = {
-				color = rl.WHITE,
-				render_layer = uint(RenderLayer.UI),
-				text_render_info = {
-					font_size = UI_SECONDARY_FONT_SIZE,
-					text_color = PLAYER_MAIN_COLOR,
-					text_alignment = .Left,
-				},
-			},
-			tags = {.Text},
-			parent_handle = game.screen_space_parent_handle,
-		}
-		player.score_label_handle = spawn_object(score_label).handle
-	}
-	{
-		health_bar_def := get_health_bar_def(player.health_info)
-		PLAYER_HEALTH_BAR_LENGTH :: 500
-		health_bar_def.disp_length = PLAYER_HEALTH_BAR_LENGTH
-		health_bar_def.disp_height = 30
-		player.health_bar =
-			spawn_ui_stat_bar("player health", {WINDOW_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10}, game.screen_space_parent_handle, health_bar_def).handle
-	}
-	return player.handle
-}
 
 atomic_chair_start :: proc() {
 	game.paused = false
@@ -499,21 +735,6 @@ atomic_chair_start :: proc() {
 	if game.player_handle.idx == 0 {
 		//not loading from a file with a player in it
 		game.player_handle = spawn_player()
-	}
-}
-
-//game-specific teardown / reset logic
-game_reset :: proc(g: ^Game = game, total: bool = false) {
-	g.player_handle = {}
-}
-
-//game-specific update logic (run once per frame)
-game_update :: proc(dt: f64) {
-	switch game.menu_state {
-	case .InGame:
-		atomic_chair_update(dt)
-	case .MainMenu:
-		main_menu_update(dt)
 	}
 }
 
@@ -954,224 +1175,4 @@ atomic_chair_update :: proc(dt: f64) {
 
 atomic_chair_stop :: proc() {
 	reset()
-}
-
-
-EnemyType :: enum {
-	Basic,
-}
-spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
-	enemy_obj := GameObject {
-		name = "enemy",
-		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
-		tags = {.Enemy, .Collide, .Sprite},
-		hitbox = {layer = .Enemy, shape = Circle{{0, 0}, 45}}, //relative to object's pivot
-		linear_drag = ENEMY_LINEAR_DRAG,
-		render_layer = uint(RenderLayer.Enemy),
-		variant = Enemy {
-			health_info = {health = 3, max_health = 3},
-			spawn_point = pos,
-			state = .Alive_Inactive,
-			type = enemy_type,
-			pathfind_index = rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
-		},
-	}
-	enemy := spawn_object(enemy_obj, Enemy)
-	enemy.texture = atlas_textures[.Enemy_Face]
-	enemy.color = rl.WHITE
-	obj_name := "enemy"
-	//TODO other stuff that varies per enemy type like different textures / animation states
-	switch enemy_type {
-	case .Basic:
-		obj_name = "basic enemy"
-	}
-	enemy.name = fmt.aprint(obj_name)
-	{
-		health_bar_def := get_health_bar_def(enemy.health_info)
-		enemy.health_bar =
-			spawn_ui_stat_bar(fmt.aprint(obj_name, "health"), {-64, -70}, enemy.handle, health_bar_def).handle
-	}
-	return enemy.handle
-}
-
-spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectInst(Bullet) {
-	//shoot bullet
-	tex := atlas_textures[PLAYER_BULLET_TEXTURE]
-	tex_dims := vec2{tex.rect.width, tex.rect.height}
-	scale := vec2{0.24, 0.24}
-	bullet := GameObject {
-		name = fmt.aprint("bullet"),
-		transform = {
-			position = pos,
-			rotation = math.to_degrees_f64(math.atan2(vel.y, vel.x)),
-			scale = scale,
-			pivot = (tex_dims / 2),
-		},
-		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
-		velocity = vel,
-		hitbox = {layer = layer, shape = Circle{pos = {}, radius = tex_dims.x / 2}},
-		tags = {.Bullet, .Collide, .Sprite},
-		variant = Bullet{nil, .Alive},
-	}
-	return spawn_object(bullet, Bullet)
-}
-
-apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
-	obj.velocity += knockback
-}
-
-play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
-	rl.SetSoundVolume(sound, volume)
-	rl.PlaySound(sound)
-}
-
-
-spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
-	master_vol_slider, master_vol_handle, master_vol_label := spawn_ui_slider(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2.75},
-		.White,
-		"VOL",
-		UISlider {
-			min_value = 0,
-			max_value = 2,
-			snap_increment = 0.2,
-			show_percentage = true,
-			default_value = f64(rl.GetMasterVolume()),
-			current_value = f64(rl.GetMasterVolume()),
-			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
-			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
-			on_set_value = proc(info: SliderCallbackInfo) {
-				rl.SetMasterVolume(f32(info.new_value))
-				rl.PlaySound(get_sound("hit.wav"))
-			},
-		},
-	)
-	music_vol_slider, music_vol_handle, music_vol_label := spawn_ui_slider(
-	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3.25},
-	.White,
-	"MUSIC",
-	UISlider {
-		min_value = 0,
-		max_value = 2,
-		snap_increment = 0.2,
-		show_percentage = true,
-		//TODO use rl.SetMusicVolume() on global music object
-		left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
-		right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
-		on_set_value = proc(info: SliderCallbackInfo) {},
-	},
-	)
-	return [6]GameObjectHandle {
-		master_vol_slider,
-		master_vol_handle,
-		master_vol_label,
-		music_vol_slider,
-		music_vol_handle,
-		music_vol_label,
-	}
-}
-
-game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
-	curr_global_tilemap := game.global_tilemap
-	game.game_specific_state = save.game_specific_state
-	game.global_tilemap = curr_global_tilemap
-
-	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
-	//if you use function pointers, you must do that here
-}
-
-obj_to_circle :: proc(h: GameObjectHandle) -> Circle {
-	obj := hm.get(&game.objects, h)
-	circle: Circle
-	switch shape in obj.hitbox.shape {
-	case AABB:
-		circle = {
-			pos    = local_to_world(h, obj.pivot),
-			radius = aabb_to_rect(shape).width / 2,
-		}
-	case Circle:
-		circle = shape
-	}
-	return circle
-}
-
-
-//enforce circles do not penetrate by adding to velocity
-circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
-	a_h, b_h := a, b
-	a_c, b_c := obj_to_circle(a), obj_to_circle(b)
-	if a_c.radius < b_c.radius {
-		a_h, b_h = b, a
-		a_c, b_c = b_c, a_c
-	}
-	assert(a_c.radius >= b_c.radius)
-	diff := b_c.pos - a_c.pos
-	if diff == {0, 0} {
-		epsilon :: 0.0001
-		diff.x += epsilon
-	}
-	dist := linalg.length(diff)
-	sum_radii := abs(a_c.radius) + abs(b_c.radius)
-	if sum_radii == 0 { 	//degenerate case - avoid div by zero
-		return
-	}
-	overlap := sum_radii - dist
-	if overlap <= 0 { 	//circles do not overlap
-		return
-	}
-	diff_unit := linalg.normalize(diff)
-	overlap_start := a_c.pos + diff_unit * b_c.radius
-	overlap_end := overlap_start + diff_unit * overlap
-	//assuming objects are equal density rigidbodies, correct resolution is to put them at a distance proportional to their radii along the overlap
-	point_of_touch := math.lerp(overlap_start, overlap_end, (a_c.radius / sum_radii))
-	//TODO(dry): helper function
-	{
-		c_new_pos := point_of_touch - diff_unit * a_c.radius
-		pos_diff := c_new_pos - a_c.pos
-		obj, ok := hm.get(&game.objects, a_h)
-		obj.inst_velocity += -pos_diff
-	}
-	{
-		c_new_pos := point_of_touch - diff_unit * b_c.radius
-		pos_diff := c_new_pos - b_c.pos
-		obj, ok := hm.get(&game.objects, b_h)
-		obj.inst_velocity += -pos_diff
-	}
-}
-
-spawn_checkpoint :: proc(pos: vec2) -> ^GameObject {
-	CHECKPOINT_SIZE :: vec2{TILE_SIZE, TILE_SIZE}
-	tex := atlas_textures[.White]
-	checkpoint := GameObject {
-		name = fmt.aprint("checkpoint"),
-		transform = {position = pos, scale = {1, 1}, pivot = CHECKPOINT_SIZE / 2},
-		render_info = {
-			texture = tex,
-			color = set_alpha(PLAYER_MAIN_COLOR, 100),
-			render_layer = uint(RenderLayer.Ceiling),
-		},
-		hitbox = {shape = AABB{min = -CHECKPOINT_SIZE / 2, max = CHECKPOINT_SIZE / 2}},
-		tags = {.Collide, .Sprite, .Checkpoint},
-	}
-	return spawn_object(checkpoint)
-}
-
-get_health_bar_def :: proc(h: Health) -> UIStatBar {
-	bar := default_ui_stat_bar()
-	bar.max_value = f64(h.max_health)
-	bar.num_ticks = h.max_health
-	bar.current_value = f64(h.health)
-	bar.incomplete_tick_display_mode = .Ceil
-	bar.interp_tick_color = true
-	bar.unfilled_color = set_alpha(rl.RED, 120)
-	return bar
-}
-
-//this is the initial value loaded into the chunk
-//for the current value of the tile, use get_tile
-//called in load_tilemap_chunk
-get_starting_tile :: proc(id: TilemapTileId) -> Tile {
-	tilemap_r := int(id.x %% len(game.global_tilemap)) //edge wrapping
-	tilemap_c := int(id.y %% len(game.global_tilemap[0])) //edge wrapping
-	return game.global_tilemap[tilemap_r][tilemap_c]
 }
