@@ -31,6 +31,8 @@ game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
 //you can think of them as extending the types with what your game needs
 //extending Game
 GameSpecificGlobalState :: struct {}
+//extending GameFrameData
+GameSpecificFrameData :: struct {}
 //extending GameObject
 GameSpecificObjectData :: struct {}
 //extending Tile
