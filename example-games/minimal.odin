@@ -1,10 +1,8 @@
 package game
 
 //boilerplate / starter code for your game-specific logic in this engine
-//note: this is a TEMPLATE file, made to give a starting point
-//it is not supposed to be compiled or executed here,
-//it's supposed to be part of the `game` package which is inside the `source` folder
-//from root of repo: cp game.odin source
+//note: this is a TEMPLATE file, made to give a starting point and modified from here
+//for some example games, see the examples folder at the root of the repo
 
 import hm "handle_map_static"
 import rl "vendor:raylib"
