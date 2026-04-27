@@ -637,9 +637,9 @@ render :: proc() {
 }
 
 get_chunks_near_cam :: proc(border_screen_multiples: f64 = 0) -> []ChunkId {
-	disp: vec2 = {WINDOW_WIDTH, WINDOW_HEIGHT} * border_screen_multiples
+	disp: vec2 = {VIEWPORT_WIDTH, VIEWPORT_HEIGHT} * border_screen_multiples
 	top_left := screen_to_world({0, 0} - disp, screen_conversion)
-	bottom_right := screen_to_world({WINDOW_WIDTH, WINDOW_HEIGHT} + disp, screen_conversion)
+	bottom_right := screen_to_world({VIEWPORT_WIDTH, VIEWPORT_HEIGHT} + disp, screen_conversion)
 	chunks := get_chunks_between(
 		get_containing_chunk(top_left),
 		get_containing_chunk(bottom_right),

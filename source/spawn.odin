@@ -5,10 +5,35 @@ import "core:reflect"
 import hm "handle_map_static"
 import rl "vendor:raylib"
 
+SpawnOptions :: struct {
+	name:                            string,
+	tex:                             TextureName,
+	render_layer:                    RenderLayer,
+	using texture_import:            TextureImportMode,
+	hitbox_units:                    HitboxUnits,
+	text:                            string,
+	pos:                             vec2,
+	rot:                             f64,
+	scale:                           vec2,
+	color:                           rl.Color,
+	coll_shape:                      CollisionShape,
+	tags:                            bit_set[ObjectTag],
+	parent_handle:                   Maybe(GameObjectHandle),
+	supplying_local_coordinates:     bool,
+	fit_screen_size_to_tex_dims:     bool,
+	fit_scale_to_tex_dims:           bool,
+	manual_size, manual_hitbox_size: bool,
+}
+HitboxUnits :: enum {
+	WorldUnits,
+	TexturePixels,
+	ScreenPixels,
+}
+
 //return the spawned object
 //if you want the handle, you can just use the handle field of the result
 //which is required to be part of the struct by handle map
-spawn_object_untyped :: proc(object: GameObject) -> ^GameObject {
+spawn_object_from_def_untyped :: proc(object: GameObject) -> ^GameObject {
 	render_layer := object.render_layer
 	if render_layer >= NUM_RENDER_LAYERS {
 		print("bad render layer, putting in default layer")
@@ -21,14 +46,89 @@ spawn_object_untyped :: proc(object: GameObject) -> ^GameObject {
 	return obj
 }
 
-spawn_object_typed :: proc(object: GameObject, $T: typeid) -> GameObjectInst(T) {
-	obj := spawn_object_untyped(object)
+spawn_object_from_def_typed :: proc(object: GameObject, $T: typeid) -> GameObjectInst(T) {
+	obj := spawn_object_from_def_untyped(object)
+	return object_inst(obj, T)
+}
+apply_spawn_opts :: proc(obj: ^GameObject, spawn_opts: Maybe(SpawnOptions) = nil) {
+	spawn_opts, spawn_opts_provided := spawn_opts.?
+	if spawn_opts_provided {
+		obj.spawn_opts = spawn_opts
+	}
+	si := obj.spawn_opts
+	obj.name = si.name
+	obj.position = si.pos
+	obj.rotation = si.rot
+	obj.texture = atlas_textures[si.tex]
+	obj.import_mode = si.texture_import
+	obj.render_layer = uint(RenderLayer.Floor)
+	if si.render_layer != {} {
+		obj.render_layer = uint(si.render_layer)
+	}
+	set_render_layer(obj.handle, obj.render_layer)
+	obj.color = si.color
+	if obj.color == {} {
+		obj.color = rl.WHITE
+	}
+	obj.tags += si.tags
+	if si.scale == {} {
+		obj.scale = {1, 1}
+	} else {
+		obj.scale = si.scale
+	}
+	tex_dims := vec2{1, 1} * TEXTURE_PIXELS_PER_WORLD_UNIT
+	if si.keep_original_dimensions {
+		tex_dims = vec2{obj.texture.rect.width, obj.texture.rect.height}
+	}
+	obj.pivot = tex_dims / 2
+	obj.hitbox.shape = AABB{-tex_dims / 2, tex_dims / 2}
+	#partial switch s in si.coll_shape {
+	case Circle:
+		obj.hitbox.shape = Circle{{0, 0}, tex_dims.x / 2}
+	}
+}
+spawn_object_from_def_with_spawn_opts :: proc(
+	object: GameObject,
+	spawn_opts: SpawnOptions,
+) -> ^GameObject {
+	obj := spawn_object_from_def_untyped(object)
+	apply_spawn_opts(obj, spawn_opts)
+	return obj
+}
+
+spawn_object_from_def_with_spawn_opts_typed :: proc(
+	object: GameObject,
+	spawn_opts: SpawnOptions,
+	$T: typeid,
+) -> GameObjectInst(T) {
+	obj := spawn_object_from_def_with_spawn_opts(object)
 	return object_inst(obj, T)
 }
 
-spawn_object :: proc {
-	spawn_object_typed,
-	spawn_object_untyped,
+spawn_object_from_def :: proc {
+	spawn_object_from_def_typed,
+	spawn_object_from_def_untyped,
+	spawn_object_from_def_with_spawn_opts,
+	spawn_object_from_def_with_spawn_opts_typed,
+}
+
+
+spawn_object :: proc(spawn_opts: SpawnOptions) -> ^GameObject {
+	obj := spawn_object_from_def({})
+	apply_spawn_opts(obj, spawn_opts)
+	return obj
+}
+
+spawn_dynamic_object :: proc(spawn_opts: SpawnOptions) -> ^GameObject {
+	opts := spawn_opts
+	opts.tags += {.Sprite, .Collide}
+	return spawn_object(opts)
+}
+spawn_decorative_object :: proc(spawn_opts: SpawnOptions) -> ^GameObject {
+	opts := spawn_opts
+	opts.tags += {.Sprite}
+	opts.tags -= {.Collide}
+	return spawn_object(opts)
 }
 
 //some convenience spawning procs for common loose categories of objects
@@ -68,7 +168,7 @@ spawn_ui_button :: proc(
 		},
 		parent_handle = game.screen_space_parent_handle,
 	}
-	return spawn_object(button_obj, UIButton)
+	return spawn_object_from_def(button_obj, UIButton)
 }
 
 
@@ -125,7 +225,7 @@ spawn_ui_slider :: proc(
 		parent_handle = game.screen_space_parent_handle,
 	}
 	slider_info := slider_info
-	handle_object := spawn_object(handle_def)
+	handle_object := spawn_object_from_def(handle_def)
 	slider_info.handle_handle = handle_object.handle
 	track_tex := atlas_textures[.White]
 	track_width := slider_info.right_pos - slider_info.left_pos
@@ -147,7 +247,7 @@ spawn_ui_slider :: proc(
 		parent_handle = game.screen_space_parent_handle,
 		variant = slider_info,
 	}
-	slider := spawn_object(slider_def)
+	slider := spawn_object_from_def(slider_def)
 	handle_object.associated_objects["slider"] = slider.handle
 	LABEL_PIXEL_PADDING :: 50
 	label_def := GameObject {
@@ -170,7 +270,7 @@ spawn_ui_slider :: proc(
 		tags = {.Text, .DoNotSerialize, .DontDestroyOnLoad},
 		parent_handle = game.screen_space_parent_handle,
 	}
-	label := spawn_object(label_def)
+	label := spawn_object_from_def(label_def)
 	return slider.handle, handle_object.handle, label.handle
 }
 
@@ -181,7 +281,7 @@ spawn_ui_stat_bar :: proc(
 	parent: Maybe(GameObjectHandle),
 	stat_bar_info: UIStatBar,
 ) -> GameObjectInst(UIStatBar) {
-	return spawn_object(
+	return spawn_object_from_def(
 		GameObject {
 			name = fmt.aprint(name, "bar"),
 			transform = {position = pos, scale = {1, 1}},

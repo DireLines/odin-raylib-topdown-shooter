@@ -12,8 +12,8 @@ ScreenConversion :: struct {
 }
 screen_conversion :: ScreenConversion {
 	SCREEN_PIXELS_PER_WORLD_UNIT,
-	f64(WINDOW_WIDTH),
-	f64(WINDOW_HEIGHT),
+	f64(VIEWPORT_WIDTH),
+	f64(VIEWPORT_HEIGHT),
 }
 world_to_screen :: proc(w: vec2, cv: ScreenConversion) -> vec2 {
 	return cv.scale * (w - game.main_camera.position) + 0.5 * {cv.screen_width, cv.screen_height}

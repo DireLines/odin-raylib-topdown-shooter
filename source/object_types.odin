@@ -102,7 +102,6 @@ all_objects_with_tags :: proc(
 	return
 }
 
-
 all_objects_with_variant :: proc(
 	it: ^GameObjectsIterator,
 	$variant_type: typeid,

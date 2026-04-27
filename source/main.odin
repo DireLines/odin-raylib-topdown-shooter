@@ -11,11 +11,13 @@ game: ^Game //global game memory
 IS_WEB :: ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32
 
 //controls
-BASE_WINDOW_WIDTH :: 1.2
-// BASE_WINDOW_WIDTH :: 2
+BASE_VIEWPORT_WIDTH :: 1.2
+// BASE_VIEWPORT_WIDTH :: 2
 FULLSCREEN :: false
-WINDOW_WIDTH :: 1200 * BASE_WINDOW_WIDTH
-WINDOW_HEIGHT :: 720 * BASE_WINDOW_WIDTH
+VIEWPORT_WIDTH :: 1200 * BASE_VIEWPORT_WIDTH
+VIEWPORT_HEIGHT :: 720 * BASE_VIEWPORT_WIDTH
+WINDOW_WIDTH :: 1200
+WINDOW_HEIGHT :: 720
 TARGET_FPS :: 60
 TEXTURE_PIXELS_PER_WORLD_UNIT :: 128 //at default scale of {1,1}
 SCREEN_PIXELS_PER_WORLD_UNIT: f64 : 0.75 //at initial camera zoom of 1
@@ -28,7 +30,6 @@ UI_MAIN_COLOR :: rl.Color{99, 155, 255, 255}
 UI_SECONDARY_COLOR :: rl.BLACK
 PATHFINDING_UPDATE_INTERVAL :: 70
 NUM_RENDER_LAYERS :: 128
-TILE_SIZE :: 150
 CHUNK_HEIGHT_TILES :: 4
 CHUNK_WIDTH_TILES :: CHUNK_HEIGHT_TILES * 4
 CHUNK_HEIGHT :: TILE_SIZE * CHUNK_HEIGHT_TILES // world units
@@ -149,6 +150,7 @@ GameObject :: struct {
 	display_transform:         Transform, //transform optionally applied on top of main transform to do programmatic animations
 	using physics:             PhysicsInfo,
 	using render_info:         RenderInfo,
+	spawn_opts:                SpawnOptions,
 	animation:                 AnimationState,
 	hitbox:                    Hitbox, //TODO: hitboxes: Small_Array(MAX_HITBOXES_PER_OBJECT, Hitbox) // multiple hitboxes
 	static:                    bool, //this object promises not to change its local or global transform, allowing some optimizations
@@ -164,11 +166,11 @@ TransformScreenSpace :: struct {
 }
 //stuff which is computed every frame and is useful to reference in gameplay code
 GameFrameData :: struct {
-	chunks:                          Chunks `cbor:"-"`, //keeps track of which objects are in which spatial regions
-	objects_in_multiple_chunks:      GameObjectSet `cbor:"-"`, //edge cases happen when objects are on edges or corners or just really big, this will let us know if we need to handle them
-	final_transforms:                [dynamic]TransformScreenSpace `cbor:"-"`, //computed at the start of each frame and after collision resolution, holds local->world transforms for each object in objects, index matched
-	collisions:                      Collisions,
-	using game_specific_frame_state: GameSpecificFrameData,
+	chunks:                         Chunks `cbor:"-"`, //keeps track of which objects are in which spatial regions
+	objects_in_multiple_chunks:     GameObjectSet `cbor:"-"`, //edge cases happen when objects are on edges or corners or just really big, this will let us know if we need to handle them
+	final_transforms:               [dynamic]TransformScreenSpace `cbor:"-"`, //computed at the start of each frame and after collision resolution, holds local->world transforms for each object in objects, index matched
+	collisions:                     Collisions,
+	using game_specific_frame_data: GameSpecificFrameData,
 }
 //long type names
 Collisions :: map[GameObjectHandle][dynamic]Collision
@@ -189,7 +191,7 @@ game_init_window :: proc() {
 	//raylib init
 	rl.SetTraceLogLevel(.NONE) //shup up
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
-	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, GAME_NAME)
+	rl.InitWindow(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, GAME_NAME)
 	if ODIN_OS != .JS {
 		rl.InitAudioDevice()
 	}
@@ -398,7 +400,7 @@ reset :: proc(g: ^Game = game, total: bool = false) {
 	g.frame_counter = 0
 	if g.screen_space_parent_handle.idx == 0 {
 		g.screen_space_parent_handle =
-			spawn_object(GameObject{name = "screen space parent", tags = {.DoNotSerialize, .DontDestroyOnLoad}}).handle
+			spawn_object_from_def(GameObject{name = "screen space parent", tags = {.DoNotSerialize, .DontDestroyOnLoad}}).handle
 	}
 	game_reset(g, total)
 	clear_except_dont_destroy :: proc(objects: ^GameObjects) {
