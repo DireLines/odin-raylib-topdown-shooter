@@ -452,7 +452,22 @@ render :: proc() {
 	timer->time("get to-draw list")
 	//insert tilemap tiles into the render layers
 	//draw using raylib
-	rl.BeginDrawing(); defer rl.EndDrawing()
+	rl.BeginTextureMode(viewport)
+	defer {
+		rl.EndTextureMode()
+		// Blit viewport to window, letterboxed.
+		scale, ox, oy := get_viewport_render_rect()
+		vp_w := f32(VIEWPORT_WIDTH)
+		vp_h := f32(VIEWPORT_HEIGHT)
+		src := rl.Rectangle{0, 0, vp_w, -vp_h} // negative height flips OpenGL Y
+		dst := rl.Rectangle{ox, oy, vp_w * scale, vp_h * scale}
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.BLACK)
+		rl.BeginBlendMode(.ALPHA_PREMULTIPLY) // RT RGB is already composited; ignore RT alpha channel
+		rl.DrawTexturePro(viewport.texture, src, dst, {0, 0}, 0, rl.WHITE)
+		rl.EndBlendMode()
+		rl.EndDrawing()
+	}
 
 	// darkgray := rl.Color{32, 32, 30, 255}
 	rl.ClearBackground(rl.BLACK)

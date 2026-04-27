@@ -16,8 +16,8 @@ BASE_VIEWPORT_WIDTH :: 1.2
 FULLSCREEN :: false
 VIEWPORT_WIDTH :: 1200 * BASE_VIEWPORT_WIDTH
 VIEWPORT_HEIGHT :: 720 * BASE_VIEWPORT_WIDTH
-WINDOW_WIDTH :: 1200
-WINDOW_HEIGHT :: 720
+INIT_WINDOW_WIDTH :: VIEWPORT_WIDTH
+INIT_WINDOW_HEIGHT :: VIEWPORT_HEIGHT
 TARGET_FPS :: 60
 TEXTURE_PIXELS_PER_WORLD_UNIT :: 128 //at default scale of {1,1}
 SCREEN_PIXELS_PER_WORLD_UNIT: f64 : 0.75 //at initial camera zoom of 1
@@ -88,6 +88,8 @@ pixel_filter_ex :: proc() {
 ATLAS_DATA :: #load("atlas.png")
 // This is loaded in `main` from `ATLAS_DATA`
 atlas: rl.Texture
+// Fixed-resolution render target; blit+scaled to actual window each frame.
+viewport: rl.RenderTexture2D
 
 PIXEL_FILTER_SHADER :: #load("shaders/pixel_filter.fs", string)
 SOLID_COLOR_SHADER :: #load("shaders/solid_color.fs", string)
@@ -191,7 +193,7 @@ game_init_window :: proc() {
 	//raylib init
 	rl.SetTraceLogLevel(.NONE) //shup up
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
-	rl.InitWindow(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, GAME_NAME)
+	rl.InitWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, GAME_NAME)
 	if ODIN_OS != .JS {
 		rl.InitAudioDevice()
 	}
@@ -264,6 +266,9 @@ game_init_raylib :: proc(game: ^Game) {
 	// Set the shape's drawing texture, this makes rl.DrawRectangleRec etc use the atlas
 	rl.SetShapesTexture(atlas, rect_to_rl_rect(SHAPES_TEXTURE_RECT))
 
+	viewport = rl.LoadRenderTexture(i32(VIEWPORT_WIDTH), i32(VIEWPORT_HEIGHT))
+	rl.SetTextureFilter(viewport.texture, .POINT)
+
 	global_default_font = get_font(MAIN_FONT)
 }
 
@@ -273,6 +278,7 @@ game_shutdown :: proc() {
 	if ODIN_OS != .JS {
 		rl.CloseAudioDevice()
 	}
+	rl.UnloadRenderTexture(viewport)
 	rl.UnloadTexture(atlas)
 	for _, texture in game.textures {
 		rl.UnloadTexture(texture)

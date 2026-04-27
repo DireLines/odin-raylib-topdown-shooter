@@ -357,8 +357,8 @@ reset_game :: proc(g: ^Game = game) {
 //game-specific update logic (run once per frame)
 game_update :: proc(game: ^Game, dt: f64) {
 	timer := timer()
-	game.mouse_screen_pos = linalg.to_f64(rl.GetMousePosition())
-	game.mouse_world_pos = screen_to_world(linalg.to_f64(rl.GetMousePosition()), screen_conversion)
+	game.mouse_screen_pos = linalg.to_f64(get_mouse_viewport_pos())
+	game.mouse_world_pos = screen_to_world(game.mouse_screen_pos, screen_conversion)
 	handle_ui_buttons()
 	timer->time("handle ui buttons")
 	switch game.stage {
@@ -482,8 +482,8 @@ game_update :: proc(game: ^Game, dt: f64) {
 		return {get_axis(.A, .D), get_axis(.W, .S)}
 	}
 	edge_scroll :: proc() -> vec2 {
-		mouse := linalg.to_f64(rl.GetMousePosition())
-		screen := vec2{f64(rl.GetScreenWidth()), f64(rl.GetScreenHeight())}
+		mouse := linalg.to_f64(get_mouse_viewport_pos())
+		screen := vec2{VIEWPORT_WIDTH, VIEWPORT_HEIGHT}
 		dir := vec2{0, 0}
 		if mouse.x < EDGE_SCROLL_MARGIN {dir.x = -1}
 		if mouse.x > screen.x - EDGE_SCROLL_MARGIN {dir.x = 1}
@@ -850,7 +850,7 @@ spawn_button :: proc(
 }
 
 handle_ui_buttons :: proc() {
-	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
+	mouse_screen_pos := linalg.to_f64(get_mouse_viewport_pos())
 	it := object_iter()
 	for button, button_handle in all_objects_with_variant(&it, UIButton) {
 		if game.clicked_ui_object != nil && game.clicked_ui_object != button_handle {continue}

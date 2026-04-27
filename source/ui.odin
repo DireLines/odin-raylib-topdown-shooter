@@ -157,7 +157,7 @@ draw_ui_stat_bar :: proc(bar: ^GameObject) {
 
 
 update_ui_buttons :: proc() {
-	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
+	mouse_screen_pos := linalg.to_f64(get_mouse_viewport_pos())
 	it := object_iter()
 	for button, button_handle in all_objects_with_variant(&it, UIButton) {
 		if game.clicked_ui_object != nil && game.clicked_ui_object != button_handle {continue}
@@ -191,7 +191,7 @@ update_ui_buttons :: proc() {
 }
 
 update_ui_sliders :: proc() {
-	mouse_screen_pos := linalg.to_f64(rl.GetMousePosition())
+	mouse_screen_pos := linalg.to_f64(get_mouse_viewport_pos())
 	it := object_iter()
 	for slider, slider_handle in all_objects_with_variant(&it, UISlider) {
 		if game.clicked_ui_object != slider_handle {continue}

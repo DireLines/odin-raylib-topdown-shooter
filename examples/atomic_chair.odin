@@ -905,7 +905,7 @@ atomic_chair_update :: proc(dt: f64) {
 		game.main_camera.position +=
 			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
 		timer->time("move player")
-		mouse_pos := screen_to_world(linalg.to_f64(rl.GetMousePosition()), screen_conversion)
+		mouse_pos := screen_to_world(linalg.to_f64(get_mouse_viewport_pos()), screen_conversion)
 		if rl.IsMouseButtonPressed(.LEFT) {
 			player_center := get_world_center(game.player_handle)
 			bullet_diff := mouse_pos - player_center
