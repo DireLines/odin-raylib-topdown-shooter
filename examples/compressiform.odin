@@ -336,7 +336,7 @@ game_start :: proc(game: ^Game) {
 	)
 	spawn_button(MENU_SCREEN_DIMS * {0.5, 0.5}, .White, "Start", proc(info: ButtonCallbackInfo) {
 		game.stage = .Started
-		if ODIN_OS == .JS && !rl.IsAudioDeviceReady() {
+		if IS_WEB && !rl.IsAudioDeviceReady() {
 			rl.InitAudioDevice()
 		}
 		hm.remove(&game.objects, info.button.handle)

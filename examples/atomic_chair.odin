@@ -674,7 +674,7 @@ spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
 			"PLAY",
 			proc(info: ButtonCallbackInfo) {
 				game := info.game
-				if ODIN_OS == .JS {
+				if IS_WEB {
 					rl.InitAudioDevice()
 				}
 				main_menu_stop()
@@ -690,7 +690,7 @@ spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
 		for h in slider_handles {
 			append(&main_menu_objects, h)
 		}
-		when ODIN_OS != .JS {
+		when !IS_WEB {
 			quit_button := spawn_ui_button(
 				MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
 				.White,

@@ -11,7 +11,7 @@ game: ^Game //global game memory
 IS_WEB :: ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32
 
 //controls
-BASE_VIEWPORT_WIDTH :: 0.4
+BASE_VIEWPORT_WIDTH :: 1.2
 // BASE_VIEWPORT_WIDTH :: 2
 FULLSCREEN :: false
 VIEWPORT_WIDTH :: 1200 * BASE_VIEWPORT_WIDTH
@@ -194,7 +194,7 @@ game_init_window :: proc() {
 	rl.SetTraceLogLevel(.NONE) //shup up
 	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
 	rl.InitWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, GAME_NAME)
-	if ODIN_OS != .JS {
+	if !IS_WEB {
 		rl.InitAudioDevice()
 	}
 	rl.SetTargetFPS(TARGET_FPS)
@@ -275,7 +275,7 @@ game_init_raylib :: proc(game: ^Game) {
 @(export)
 game_shutdown :: proc() {
 	// hm.delete(&game.objects)
-	if ODIN_OS != .JS {
+	if !IS_WEB {
 		rl.CloseAudioDevice()
 	}
 	rl.UnloadRenderTexture(viewport)
@@ -349,7 +349,7 @@ game_step :: proc(game: ^Game = game) {
 
 @(export)
 game_should_run :: proc() -> bool {
-	when ODIN_OS != .JS {
+	when !IS_WEB {
 		// Never run this proc in browser. It contains a 16 ms sleep on web!
 		if rl.WindowShouldClose() || game.quit {
 			return false

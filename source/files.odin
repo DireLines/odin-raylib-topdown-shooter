@@ -236,7 +236,7 @@ apply_save_to_game :: proc(g: ^Game, save: ^GameSave) {
 }
 
 save_game :: proc(g: ^Game, path: string = "") {
-	when ODIN_OS == .JS {
+	when IS_WEB {
 		print("saving & loading not supported on WASM yet")
 	} else {
 		_save_game(g, path)
@@ -244,7 +244,7 @@ save_game :: proc(g: ^Game, path: string = "") {
 }
 
 load_game :: proc(g: ^Game, path: string = "") {
-	when ODIN_OS == .JS {
+	when IS_WEB {
 		print("saving & loading not supported on WASM yet")
 	} else {
 		_load_game(g, path)
