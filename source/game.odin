@@ -1,121 +1,133 @@
-#+feature dynamic-literals
 package game
-
-import "core:fmt"
-import "core:math"
-import "core:math/linalg"
-import "core:math/rand"
-import "core:slice"
-import hm "handle_map_static"
-import maps "mapgen"
 import rl "vendor:raylib"
 
 //starter code for your game-specific logic in this engine
 //note: this is a TEMPLATE file, made to give a starting point and modified from here
 //for some example games, see the examples folder at the root of the repo
 
-//a bigger "actual game" example featuring
-// - a player character who shoots bullets
-// - enemies with A* pathfinding toward the player on a grid
-// - loading a world map from a color coded image
-// - saving and loading from checkpoints
-//the hope with this one is that you might be able to reuse some code or steal some approach taken here
-
-GAME_NAME :: "atomic chair"
-TILE_SIZE :: 150
-MENU_BUTTON_SPACING :: 0.15
-MENU_SCREEN_DIMS :: vec2{VIEWPORT_WIDTH, VIEWPORT_HEIGHT}
-PLAYER_MAIN_COLOR :: rl.Color{99, 155, 255, 255}
-BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
-FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
-CHECKPOINT_COLOR :: rl.Color{100, 200, 100, 255}
-STAT_BAR_UNFILLED_TICK_COLOR :: rl.Color{50, 50, 50, 255}
-//speeds in world units per second
-PLAYER_MAX_SPEED :: 40000
-PLAYER_LINEAR_DRAG :: 5.0
-PLAYER_BULLET_SPEED :: 1400
-PLAYER_BULLET_FIRING_POSITION_OFFSET :: 15
-ENEMY_BULLET_SPEED :: 500
-BULLET_KNOCKBACK_STRENGTH :: 10
-ENEMY_LINEAR_DRAG :: 5.0
-ENEMY_CONTACT_KNOCKBACK_STRENGTH :: 20
-PLAYER_BULLET_TEXTURE :: TextureName.Arrow_Right_Kenney_Board_Game_Icons_128px
-INGAME_UI_PADDING :: 20.0
+//this is a showcase example and probably the one you want to actually copy and start editing
+//implements a standard main menu / in game / pause menu flow so you don't have to
+//the actual game is just a single example of as many engine features as I can think of
+GAME_NAME :: "rotato"
+TILE_SIZE :: 100
 
 //game-specific initialization logic (run once when game is started)
 //typically this will be "set up the main menu"
 game_start :: proc() {
-	game.color_to_tiletype = {
-		rl.BLACK        = .Wall,
-		FLOOR_MAP_COLOR = .None,
-	}
-	game.color_to_spawn = {
-		PLAYER_MAIN_COLOR = .Player,
-		BASIC_ENEMY_COLOR = .Enemy,
-		CHECKPOINT_COLOR  = .Checkpoint,
-	}
-	load_map :: proc() -> Tilemap {
-		MAP_DATA :: #load("map.png")
-		tiles_img := rl.LoadImageFromMemory(".png", raw_data(MAP_DATA), i32(len(MAP_DATA)))
-		tiles_buf := maps.img_to_buf(tiles_img, transpose = true)
-		color_to_tile :: proc(c: rl.Color) -> Tile {
-			t := Tile{}
-			tiletype, ok := game.color_to_tiletype[c]
-			if ok {
-				t.type = tiletype
-			}
-			spawntype, spawn_ok := game.color_to_spawn[c]
-			if spawn_ok {
-				t.spawn = spawntype
-			}
-			return t
-		}
-		return img_to_tilemap(tiles_buf, color_to_tile)
-	}
-	find_player_spawn :: proc(tilemap: ^Tilemap) -> TilemapTileId {
-		for r in 0 ..< len(tilemap) {
-			row := tilemap[r]
-			for c in 0 ..< len(row) {
-				tile := tilemap[r][c]
-				if tile.spawn == .Player {
-					return TilemapTileId{r, c}
-				}
-			}
-		}
-		return {}
-	}
-	game.global_tilemap = load_map()
-	player_spawn_tile := find_player_spawn(&game.global_tilemap)
-	game.player_spawn_point = get_tile_center(player_spawn_tile)
-	game.main_camera.position = game.player_spawn_point
-
-	menu_container := spawn_object_from_def(
-		GameObject{name = "menu container", tags = {.DoNotSerialize, .DontDestroyOnLoad}},
+	//keep_original_dimensions means the object will end up sized relative to the texture
+	//player objects
+	//velocity based on WASD
+	rotato := spawn_object(
+		{
+			name = "Rotato",
+			basic_type = .Dynamic,
+			tex = .Potato,
+			render_layer = .Player,
+			pos = {2, -1},
+			tags = {.Spin, .WASD},
+			scale = {0.2, 0.2},
+			shape = Circle{},
+		},
 	)
-	game.menu_container = menu_container.handle
-	game.menu_state = .MainMenu
-	main_menu_start()
+	//accel based on WASD
+	accelerato := spawn_object(
+		{
+			name = "Accelerato",
+			basic_type = .Dynamic,
+			tex = .Potato,
+			render_layer = .Player,
+			pos = {-3, 0},
+			rot = 90,
+			scale = {1, 2},
+			tags = {.WASD_Accel},
+		},
+	)
+	accelerato.linear_drag = 0.7
+	//decorative objects
+	spawn_object(
+		{
+			name = "rotato platform",
+			basic_type = .Decoration,
+			tex = .Cavefloor,
+			color = rl.GREEN,
+			render_layer = .Floor,
+			pos = {100, -50},
+			rot = 180,
+			scale = {2, 2},
+		},
+	)
+	spawn_object(
+		{
+			name = "accelerato platform",
+			basic_type = .Decoration,
+			tex = .Cavefloor,
+			color = rl.BLUE,
+			render_layer = .Floor,
+			pos = {-200, 0},
+			rot = 180,
+			scale = {2, 2},
+		},
+	)
 }
+// TODO
+// reparent_keeping_world_pos :: proc(obj: ^GameObject, new_parent: GameObjectHandle) {
+// 	old_parent := obj.parent_handle
+
+// }
 
 //game-specific update logic (run once per frame)
 game_update :: proc(dt: f64) {
-	switch game.menu_state {
-	case .InGame:
-		atomic_chair_update(dt)
-	case .MainMenu:
-		main_menu_update(dt)
+	timer := timer()
+	{
+		load_chunk :: proc(chunk: ChunkId) {
+			tilemap := get_tilemap_chunk(chunk)
+			print("loaded chunk", chunk, "on frame", game.frame_counter)
+			game.loaded_chunks[chunk] = {}
+		}
+		chunks_near_cam := get_chunks_near_cam(1)
+		for chunk in chunks_near_cam {
+			if chunk not_in game.loaded_chunks {
+				load_chunk(chunk)
+			}
+		}
+
+		//TODO load/unload chunks if cam chunks changed
+		//mostly need to decide what to actually do on chunk unload
+		//1. unload tilemap
+		//2. unload (inactive?) enemies currently in chunk?
+		//3. remember which enemies to respawn when chunk is loaded again?
 	}
+	//a basic piece of update logic: spin stuff with Spin tag
+	{it := object_iter()
+		for obj in all_objects_with_tags(&it, .Spin) {
+			obj.rotation += dt * 50
+		}
+	}
+	timer->time("spin things")
+	{it := object_iter()
+		get_axis :: proc(key_neg, key_pos: rl.KeyboardKey) -> f64 {
+			return f64(int(rl.IsKeyDown(key_pos))) - f64(int(rl.IsKeyDown(key_neg)))
+		}
+		WASD :: proc() -> vec2 {
+			return {get_axis(.A, .D), get_axis(.W, .S)}
+		}
+		for obj in all_objects_with_tags(&it, .WASD) {
+			obj.inst_velocity += WASD() * 300
+		}
+		it = object_iter()
+		for obj in all_objects_with_tags(&it, .WASD_Accel) {
+			obj.acceleration += WASD() * 500
+		}
+	}
+	timer->time("wasd things")
 }
 
 //game-specific teardown / reset logic
-game_reset :: proc(g: ^Game = game, total: bool = false) {
-	g.player_handle = {}
-}
+game_reset :: proc(game: ^Game, total: bool = false) {}
+
 //game-specific logic when loading from a save state
 game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
-	curr_global_tilemap := game.global_tilemap
 	game.game_specific_state = save.game_specific_state
-	game.global_tilemap = curr_global_tilemap
 
 	//unfortunately save/load destroys function pointers, we need to replace the ones we care about
 	//if you use function pointers, you must do that here
@@ -125,22 +137,9 @@ game_specific_load :: proc(game: ^Game = game, save: ^GameSave) {
 //you can think of them as extending the types with what your game needs
 //extending Game
 GameSpecificGlobalState :: struct {
-	menu_state:         MenuState,
-	menu_container:     GameObjectHandle,
-	global_tilemap:     Tilemap `cbor:"-"`, //not serialized - too big
-	chunk_loading_mode: ChunkLoadingMode,
-	//we load the map immediately, but need to remember
-	//where to spawn the player when the player object is spawned later
-	player_spawn_point: vec2,
-	player_handle:      GameObjectHandle,
-	color_to_tiletype:  map[rl.Color]TileType,
-	color_to_spawn:     map[rl.Color]SpawnType,
+	stage: GameStage,
 }
-ChunkLoadingMode :: enum {
-	Room,
-	Proximity,
-}
-MenuState :: enum {
+GameStage :: enum {
 	MainMenu,
 	InGame,
 }
@@ -149,37 +148,7 @@ GameSpecificFrameData :: struct {}
 //extending GameObject
 GameSpecificObjectData :: struct {}
 //extending Tile
-GameSpecificTileData :: struct {
-	spawn: SpawnType,
-}
-SpawnType :: enum {
-	None,
-	Player,
-	Enemy,
-	Checkpoint,
-}
-
-//types needed in variants
-AliveDeadState :: enum {
-	Alive,
-	Dead,
-}
-EnemyState :: enum {
-	Alive_Inactive,
-	Alive_Active,
-	Dead,
-}
-Health :: struct {
-	health, max_health: int,
-	health_bar:         GameObjectHandle,
-}
-Invuln :: struct {
-	invulnerable:                           bool,
-	invuln_cooldown, invuln_time_remaining: f64,
-}
-EnemyType :: enum {
-	Basic,
-}
+GameSpecificTileData :: struct {}
 
 //object variants
 //in contrast to tags, each object has exactly one variant
@@ -188,27 +157,8 @@ EnemyType :: enum {
 //for example, an enemy might need a max speed, state machine behavior, and an equipped weapon
 //but those things will never apply to a collectible item
 //so Enemy and Collectible can be two variants in the union
-Player :: struct {
-	using health_info:  Health,
-	using invuln:       Invuln,
-	state:              AliveDeadState,
-	score:              int,
-	score_label_handle: GameObjectHandle,
-	current_chunk:      ChunkId,
-}
-Enemy :: struct {
-	using health_info: Health,
-	spawn_point:       vec2,
-	state:             EnemyState,
-	type:              EnemyType,
-	pathfind_index:    uint,
-	path:              TilePath,
-}
-Bullet :: struct {
-	last_hit_object: Maybe(GameObjectHandle),
-	state:           AliveDeadState,
-}
 DefaultVariant :: distinct struct{}
+Player :: struct {}
 GameObjectVariant :: union {
 	//engine provided variants
 	DefaultVariant,
@@ -217,8 +167,6 @@ GameObjectVariant :: union {
 	UIStatBar,
 	//game-specific variants
 	Player,
-	Enemy,
-	Bullet,
 }
 
 //object tags
@@ -229,25 +177,24 @@ ObjectTag :: enum {
 	//engine-required tags
 	Disabled, // if set, systems will skip object as if it has been deleted
 	Collide, // if set, the collision system will consider this object in collisions
+	Static, // if set, the object cannot move but objects will collide with it like a wall
 	Sprite, // if set, the renderer will draw the sprite / texture data of this object
 	Text, // if set, the renderer will draw the text data of this object
 	CustomDraw, // if set, the renderer will call the custom draw function on this object
 	DoNotSerialize, // if set, saving will not save this object
 	DontDestroyOnLoad, // if set, loading will not reset or overwrite this object
-	//user-defined tags
-	Bullet,
-	Player,
-	Enemy,
-	Checkpoint,
+	//game-specific tags
+	Spin,
+	WASD,
+	WASD_Accel,
 }
-
 
 //type constraints to check at runtime (outside of Odin's type system)
 //these will be checked once per frame and print nice errors if violated
 //checks are not very expensive but can be turned off with a flag for release builds
 //for example, you might want to assert that no object ever has both of a pair of tags
 //or that no objects with the DecorativeSprite variant are missing the Sprite tag
-TYPE_ASSERTS := []GameObjectTypeAssert{TagCollisionLayerAssert{.Bullet, .Bullet, false, true}}
+TYPE_ASSERTS := []GameObjectTypeAssert{}
 
 //collision layers
 //you may want some categories of objects to only collide with certain other categories
@@ -256,23 +203,12 @@ TYPE_ASSERTS := []GameObjectTypeAssert{TagCollisionLayerAssert{.Bullet, .Bullet,
 //to that end, you can define categories of objects which the collision system knows about
 CollisionLayer :: enum {
 	Default = 0,
-	Player,
-	Enemy,
 	Wall,
-	Bullet,
-	PlayerBullet,
-	EnemyBullet,
 }
 //which collision layers can hit which others?
 @(rodata)
 COLLISION_MATRIX: [CollisionLayer]bit_set[CollisionLayer] = #partial {
-	.Default      = ~{}, //by default, collide with all layers
-	.Wall         = {.Player, .PlayerBullet, .Bullet, .Enemy, .EnemyBullet},
-	.Player       = {.Wall, .Enemy, .EnemyBullet},
-	.PlayerBullet = {.Enemy, .Wall},
-	.Bullet       = {.Wall, .Player, .Enemy},
-	.Enemy        = {.Wall, .Player, .PlayerBullet},
-	.EnemyBullet  = {.Player, .Wall},
+	.Default = ~{}, //by default, collide with all layers
 }
 
 //named render layers
@@ -283,10 +219,9 @@ COLLISION_MATRIX: [CollisionLayer]bit_set[CollisionLayer] = #partial {
 RenderLayer :: enum uint {
 	Bottom  = 0,
 	Floor   = NUM_RENDER_LAYERS * 50.0 / 256,
-	Wall    = NUM_RENDER_LAYERS * 52.0 / 256,
 	Enemy   = NUM_RENDER_LAYERS * 100.0 / 256,
-	Player  = NUM_RENDER_LAYERS * 120.0 / 256,
-	Bullet  = NUM_RENDER_LAYERS * 128.0 / 256,
+	Bullet  = NUM_RENDER_LAYERS * 120.0 / 256,
+	Player  = NUM_RENDER_LAYERS * 128.0 / 256,
 	Ceiling = NUM_RENDER_LAYERS * 200.0 / 256,
 	UI      = NUM_RENDER_LAYERS * 240.0 / 256,
 	Top     = NUM_RENDER_LAYERS - 1,
@@ -296,11 +231,9 @@ RenderLayer :: enum uint {
 //this is because they are by far the most common type of object in practice
 //so benefit more from some optimizations and simplifying assumptions
 //unlike GameObjects, tiles in the tilemap
-//1) are always static - they do not move, and collisions with them have
+//1) are always static - they do not move, and collisions with them have con
 //2) are always located at a particular grid cell in the tilemap
-//3) are identical to all other tiles of the same type
-//   there is no tile-specific data at a particular spot in the grid
-//   all that is stored is the tile type id
+//3) are identical to all other tiles of the same type for the set of specified in TILE_PROPERTIES
 //types of tiles
 TileType :: enum {
 	None,
@@ -309,7 +242,7 @@ TileType :: enum {
 //properties of each type of tile
 TILE_PROPERTIES := [TileType]TileTypeInfo {
 	.None = {
-		texture      = atlas_textures[.Block_Strong_Empty_Kenney_New_Platformer_Pack_1_1_Large],
+		texture      = atlas_textures[.None],
 		render_layer = uint(RenderLayer.Floor),
 		color        = {128, 128, 128, 255},
 		// random_rotation = true,
@@ -329,862 +262,9 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 //for the current value of the tile, use get_tile
 //called in load_tilemap_chunk
 get_starting_tile :: proc(id: TilemapTileId) -> Tile {
-	tilemap_r := int(id.x %% len(game.global_tilemap)) //edge wrapping
-	tilemap_c := int(id.y %% len(game.global_tilemap[0])) //edge wrapping
-	return game.global_tilemap[tilemap_r][tilemap_c]
-}
-
-//enforce circles do not penetrate by adding to velocity
-circle_jostle_resolve :: proc(a, b: GameObjectHandle) {
-	a_h, b_h := a, b
-	a_c, b_c := obj_to_circle(a), obj_to_circle(b)
-	if a_c.radius < b_c.radius {
-		a_h, b_h = b, a
-		a_c, b_c = b_c, a_c
+	should_be_wall := (id.y < -2) || (id.x < -2)
+	t := Tile {
+		type = should_be_wall ? .Wall : .None,
 	}
-	assert(a_c.radius >= b_c.radius)
-	diff := b_c.pos - a_c.pos
-	if diff == {0, 0} {
-		epsilon :: 0.0001
-		diff.x += epsilon
-	}
-	dist := linalg.length(diff)
-	sum_radii := abs(a_c.radius) + abs(b_c.radius)
-	if sum_radii == 0 { 	//degenerate case - avoid div by zero
-		return
-	}
-	overlap := sum_radii - dist
-	if overlap <= 0 { 	//circles do not overlap
-		return
-	}
-	diff_unit := linalg.normalize(diff)
-	overlap_start := a_c.pos + diff_unit * b_c.radius
-	overlap_end := overlap_start + diff_unit * overlap
-	//assuming objects are equal density rigidbodies, correct resolution is to put them at a distance proportional to their radii along the overlap
-	point_of_touch := math.lerp(overlap_start, overlap_end, (a_c.radius / sum_radii))
-	//TODO(dry): helper function
-	{
-		c_new_pos := point_of_touch - diff_unit * a_c.radius
-		pos_diff := c_new_pos - a_c.pos
-		obj, ok := hm.get(&game.objects, a_h)
-		obj.inst_velocity += -pos_diff
-	}
-	{
-		c_new_pos := point_of_touch - diff_unit * b_c.radius
-		pos_diff := c_new_pos - b_c.pos
-		obj, ok := hm.get(&game.objects, b_h)
-		obj.inst_velocity += -pos_diff
-	}
-}
-
-spawn_checkpoint :: proc(pos: vec2) -> ^GameObject {
-	CHECKPOINT_SIZE :: vec2{TILE_SIZE, TILE_SIZE}
-	tex := atlas_textures[.White]
-	checkpoint := GameObject {
-		name = fmt.aprint("checkpoint"),
-		transform = {position = pos, scale = {1, 1}, pivot = CHECKPOINT_SIZE / 2},
-		render_info = {
-			texture = tex,
-			color = set_alpha(PLAYER_MAIN_COLOR, 100),
-			render_layer = uint(RenderLayer.Ceiling),
-		},
-		hitbox = {shape = AABB{min = -CHECKPOINT_SIZE / 2, max = CHECKPOINT_SIZE / 2}},
-		tags = {.Collide, .Sprite, .Checkpoint},
-	}
-	return spawn_object_from_def(checkpoint)
-}
-
-get_health_bar_def :: proc(h: Health) -> UIStatBar {
-	bar := default_ui_stat_bar()
-	bar.max_value = f64(h.max_health)
-	bar.num_ticks = h.max_health
-	bar.current_value = f64(h.health)
-	bar.incomplete_tick_display_mode = .Ceil
-	bar.interp_tick_color = true
-	bar.unfilled_color = set_alpha(rl.RED, 120)
-	return bar
-}
-
-spawn_player :: proc() -> GameObjectHandle {
-	player_def := GameObject {
-		name = "player",
-		transform = {
-			position = game.player_spawn_point,
-			rotation = 0,
-			scale = {1.4, 1.4},
-			pivot = {64, 128},
-		},
-		linear_drag = PLAYER_LINEAR_DRAG,
-		hitbox = {layer = .Player, shape = AABB{{-40, -60}, {40, 74}}}, //relative to object's pivot
-		render_info = {
-			color = rl.WHITE,
-			texture = atlas_textures[.Squatman0],
-			render_layer = uint(RenderLayer.Player),
-			include_transparent_border = true,
-			keep_original_dimensions = true,
-		},
-		animation = initial_animation_state(make_animation(.Squatman_Idle, 4)),
-		tags = {.Player, .Collide, .Sprite},
-		variant = Player{health = 6, max_health = 6, state = .Alive, invuln_cooldown = 1.0},
-	}
-	player := spawn_object_from_def(player_def, Player)
-	{
-		score_label := GameObject {
-			name = "score label",
-			transform = {
-				position = {INGAME_UI_PADDING, INGAME_UI_PADDING},
-				scale = {1, 1},
-				pivot = {0, 0},
-			},
-			render_info = {
-				color = rl.WHITE,
-				render_layer = uint(RenderLayer.UI),
-				text_render_info = {
-					font_size = UI_SECONDARY_FONT_SIZE,
-					text_color = PLAYER_MAIN_COLOR,
-					text_alignment = .Left,
-				},
-			},
-			tags = {.Text},
-			parent_handle = game.screen_space_parent_handle,
-		}
-		player.score_label_handle = spawn_object_from_def(score_label).handle
-	}
-	{
-		health_bar_def := get_health_bar_def(player.health_info)
-		PLAYER_HEALTH_BAR_LENGTH :: 500
-		health_bar_def.disp_length = PLAYER_HEALTH_BAR_LENGTH
-		health_bar_def.disp_height = 30
-		player.health_bar =
-			spawn_ui_stat_bar("player health", {VIEWPORT_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10}, game.screen_space_parent_handle, health_bar_def).handle
-	}
-	return player.handle
-}
-
-spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
-	enemy_obj := GameObject {
-		name = "enemy",
-		transform = {position = pos, scale = {1, 1}, pivot = {64, 64}},
-		tags = {.Enemy, .Collide, .Sprite},
-		hitbox = {layer = .Enemy, shape = Circle{{0, 0}, 45}}, //relative to object's pivot
-		linear_drag = ENEMY_LINEAR_DRAG,
-		render_layer = uint(RenderLayer.Enemy),
-		variant = Enemy {
-			health_info = {health = 3, max_health = 3},
-			spawn_point = pos,
-			state = .Alive_Inactive,
-			type = enemy_type,
-			pathfind_index = rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
-		},
-	}
-	enemy := spawn_object_from_def(enemy_obj, Enemy)
-	enemy.texture = atlas_textures[.Enemy_Face]
-	enemy.color = rl.WHITE
-	obj_name := "enemy"
-	//TODO other stuff that varies per enemy type like different textures / animation states
-	switch enemy_type {
-	case .Basic:
-		obj_name = "basic enemy"
-	}
-	enemy.name = fmt.aprint(obj_name)
-	{
-		health_bar_def := get_health_bar_def(enemy.health_info)
-		enemy.health_bar =
-			spawn_ui_stat_bar(fmt.aprint(obj_name, "health"), {-64, -70}, enemy.handle, health_bar_def).handle
-	}
-	return enemy.handle
-}
-
-spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectInst(Bullet) {
-	//shoot bullet
-	tex := atlas_textures[PLAYER_BULLET_TEXTURE]
-	tex_dims := vec2{tex.rect.width, tex.rect.height}
-	scale := vec2{0.24, 0.24}
-	bullet := GameObject {
-		name = fmt.aprint("bullet"),
-		transform = {
-			position = pos,
-			rotation = math.to_degrees_f64(math.atan2(vel.y, vel.x)),
-			scale = scale,
-			pivot = (tex_dims / 2),
-		},
-		render_info = {texture = tex, color = rl.WHITE, render_layer = uint(RenderLayer.Bullet)},
-		velocity = vel,
-		hitbox = {layer = layer, shape = Circle{pos = {}, radius = tex_dims.x / 2}},
-		tags = {.Bullet, .Collide, .Sprite},
-		variant = Bullet{nil, .Alive},
-	}
-	return spawn_object_from_def(bullet, Bullet)
-}
-
-apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
-	obj.velocity += knockback
-}
-
-play_sound :: proc(sound: rl.Sound, volume: f32 = 1) {
-	rl.SetSoundVolume(sound, volume)
-	rl.PlaySound(sound)
-}
-
-spawn_vol_sliders :: proc() -> [6]GameObjectHandle {
-	master_vol_slider, master_vol_handle, master_vol_label := spawn_ui_slider(
-		MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2.75},
-		.White,
-		"VOL",
-		UISlider {
-			min_value = 0,
-			max_value = 2,
-			snap_increment = 0.2,
-			show_percentage = true,
-			default_value = f64(rl.GetMasterVolume()),
-			current_value = f64(rl.GetMasterVolume()),
-			left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
-			right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
-			on_set_value = proc(info: SliderCallbackInfo) {
-				rl.SetMasterVolume(f32(info.new_value))
-				rl.PlaySound(get_sound("hit.wav"))
-			},
-		},
-	)
-	music_vol_slider, music_vol_handle, music_vol_label := spawn_ui_slider(
-	MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 3.25},
-	.White,
-	"MUSIC",
-	UISlider {
-		min_value = 0,
-		max_value = 2,
-		snap_increment = 0.2,
-		show_percentage = true,
-		//TODO use rl.SetMusicVolume() on global music object
-		left_pos = MENU_SCREEN_DIMS.x * 0.5 - 250,
-		right_pos = MENU_SCREEN_DIMS.x * 0.5 + 250,
-		on_set_value = proc(info: SliderCallbackInfo) {},
-	},
-	)
-	return [6]GameObjectHandle {
-		master_vol_slider,
-		master_vol_handle,
-		master_vol_label,
-		music_vol_slider,
-		music_vol_handle,
-		music_vol_label,
-	}
-}
-
-obj_to_circle :: proc(h: GameObjectHandle) -> Circle {
-	obj := hm.get(&game.objects, h)
-	circle: Circle
-	switch shape in obj.hitbox.shape {
-	case AABB:
-		circle = {
-			pos    = local_to_world(h, obj.pivot),
-			radius = aabb_to_rect(shape).width / 2,
-		}
-	case Circle:
-		circle = shape
-	}
-	return circle
-}
-
-main_menu_start :: proc() {
-	game.paused = true
-	switch_menu("main_menu")
-}
-
-main_menu_update :: proc(dt: f64) {
-	timer := timer()
-	update_ui_buttons()
-	update_ui_sliders()
-	timer->time("update ui")
-	game.main_camera.position += {30, 40} * dt
-	if game.render_counter % 300 == 0 {
-		game.main_camera.position = random_point_in_circle(game.player_spawn_point, TILE_SIZE * 10)
-	}
-}
-
-main_menu_stop :: proc() {
-	toggle_menu("main_menu", false)
-}
-
-menu_names :: []string{"main_menu", "pause_menu", "game_over"}
-switch_menu :: proc(menu_name: string) {
-	for name in menu_names {
-		toggle_menu(name, name == menu_name)
-	}
-}
-
-toggle_menu :: proc(menu_name: string, enable: Maybe(bool) = nil) {
-	menu_container, ok := get_object(game.menu_container)
-	if !ok {
-		print("menu container no longer exists")
-		return
-	}
-	spawn_menu_objects(game.menu_container) //idempotent, it's fine to call again
-	enable, should_set := enable.?
-	menu_objects, has_menu := menu_container.associated_objects[menu_name]
-	if !has_menu {
-		print("tried to toggle nonexistent menu", menu_name)
-		return
-	}
-	switch thing in menu_objects {
-	case GameObjectHandle:
-		obj := get_object(thing)
-		if should_set {
-			if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
-		} else {
-			obj.tags ~= {.Disabled}
-		}
-	case [dynamic]GameObjectHandle:
-		for h in thing {
-			obj := get_object(h)
-			if should_set {
-				if enable {obj.tags -= {.Disabled}} else {obj.tags += {.Disabled}}
-			} else {
-				obj.tags ~= {.Disabled}
-			}
-		}
-	}
-}
-
-
-spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
-	container := get_object(container_handle)
-	if "main_menu" not_in container.associated_objects {
-		//spawn buttons
-		titlebar_tex := atlas_textures[.Atomic_Chair_Title]
-		sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
-		titlebar := spawn_object_from_def(
-		GameObject {
-			name = GAME_NAME,
-			transform = {
-				position = MENU_SCREEN_DIMS * {0.5, 0.1},
-				pivot    = {60, 28.25}, //TODO it *SHOULD* be half the texture width, why is it this?
-				scale    = sc,
-			},
-			parent_handle = game.screen_space_parent_handle,
-			texture = titlebar_tex,
-			render_layer = uint(RenderLayer.UI),
-			color = rl.WHITE,
-			tags = {.Sprite, .DoNotSerialize, .DontDestroyOnLoad},
-		},
-		)
-		play_button := spawn_ui_button(
-			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
-			.White,
-			"PLAY",
-			proc(info: ButtonCallbackInfo) {
-				game := info.game
-				if IS_WEB {
-					rl.InitAudioDevice()
-				}
-				main_menu_stop()
-				recreate_final_transforms()
-				game.menu_state = .InGame
-				atomic_chair_start()
-			},
-		)
-		//volume sliders
-		slider_handles := spawn_vol_sliders()
-		//TODO credits button
-		main_menu_objects := [dynamic]GameObjectHandle{play_button.handle, titlebar.handle}
-		for h in slider_handles {
-			append(&main_menu_objects, h)
-		}
-		when !IS_WEB {
-			quit_button := spawn_ui_button(
-				MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
-				.White,
-				"QUIT",
-				proc(info: ButtonCallbackInfo) {
-					game := info.game
-					main_menu_stop()
-					game.quit = true
-				},
-			)
-			append(&main_menu_objects, quit_button.handle)
-		}
-		container.associated_objects["main_menu"] = main_menu_objects
-	}
-	if "pause_menu" not_in container.associated_objects {
-		resume_button := spawn_ui_button(
-			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 2},
-			.White,
-			"RESUME",
-			proc(info: ButtonCallbackInfo) {
-				game := info.game
-				toggle_menu("pause_menu", false)
-				game.paused = false
-			},
-		)
-		//volume sliders
-		slider_handles := spawn_vol_sliders()
-		main_menu_button := spawn_ui_button(
-			MENU_SCREEN_DIMS * {0.5, 0.1 + MENU_BUTTON_SPACING * 4},
-			.White,
-			"QUIT",
-			proc(info: ButtonCallbackInfo) {
-				game := info.game
-				toggle_menu("pause_menu", false)
-				atomic_chair_stop()
-				game.menu_state = .MainMenu
-				main_menu_start()
-			},
-		)
-		pause_menu_objects := [dynamic]GameObjectHandle {
-			resume_button.handle,
-			main_menu_button.handle,
-		}
-		for h in slider_handles {
-			append(&pause_menu_objects, h)
-		}
-		container.associated_objects["pause_menu"] = pause_menu_objects
-	}
-}
-
-atomic_chair_start :: proc() {
-	game.paused = false
-	game.chunk_loading_mode = .Proximity
-	if game.player_handle.idx == 0 {
-		//not loading from a file with a player in it
-		game.player_handle = spawn_player()
-	}
-}
-
-atomic_chair_update :: proc(dt: f64) {
-	if rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
-		game.paused = !game.paused
-		if game.paused {
-			toggle_menu("pause_menu", true)
-			recreate_final_transforms()
-		} else {
-			toggle_menu("pause_menu", false)
-		}
-	}
-	// main game logic
-	timer := timer()
-	update_ui_buttons()
-	update_ui_sliders()
-	if game.paused {
-		//TODO additional pause menu stuff?
-		return
-	}
-	timer->time("handle buttons")
-	player := get_object(game.player_handle, Player)
-	{
-		load_chunk :: proc(chunk: ChunkId) {
-			tilemap := get_tilemap_chunk(chunk)
-			min_corner, _ := get_tilemap_corners(chunk)
-			for i in 0 ..< CHUNK_WIDTH_TILES {
-				for j in 0 ..< CHUNK_HEIGHT_TILES {
-					spawn_tile := min_corner + TilemapTileId{i, j}
-					#partial switch tilemap[i][j].spawn {
-					case .Enemy:
-						for _ in 0 ..< 5 {
-							pos := random_point_in_tile(spawn_tile)
-							spawn_enemy(pos, .Basic)
-						}
-					case .Checkpoint:
-						spawn_checkpoint(get_tile_center(spawn_tile))
-					}
-				}
-			}
-			print("loaded chunk", chunk, "on frame", game.frame_counter)
-			game.loaded_chunks[chunk] = {}
-		}
-		switch game.chunk_loading_mode {
-		case .Room:
-			player_chunk := get_containing_chunk(player.position)
-			if player_chunk not_in game.room_chunks {
-				player.current_chunk = player_chunk
-				delete(game.room_chunks)
-				game.room_chunks = get_chunks_in_room(get_containing_tile(player.position))
-				for chunk in game.room_chunks {
-					if chunk not_in game.loaded_chunks {
-						load_chunk(chunk)
-					}
-				}
-			}
-		case .Proximity:
-			chunks_near_cam := get_chunks_near_cam(1)
-			for chunk in chunks_near_cam {
-				if chunk not_in game.loaded_chunks {
-					load_chunk(chunk)
-				}
-			}
-		}
-
-		//TODO load/unload chunks if cam chunks changed
-		//mostly need to decide what to actually do on chunk unload
-		//1. unload tilemap
-		//2. unload (inactive?) enemies currently in chunk?
-		//3. remember which enemies to respawn when chunk is loaded again?
-	}
-	timer->time("load chunks")
-	player_take_damage :: proc(player: GameObjectInst(Player)) {
-		if player.invulnerable {return}
-		player.health -= 1
-		//did we just die?
-		if player.health <= 0 {
-			player.state = .Dead
-			play_sound(get_sound("death.wav"))
-			play_sound(get_sound("death2.wav"))
-		} else {
-			play_sound(get_sound("hit.wav"))
-			player.invulnerable = true
-			player.invuln_time_remaining = player.invuln_cooldown
-		}
-	}
-	//player movement
-	// player.shader = .SolidColor
-	switch player.variant.(Player).state {
-	case .Alive:
-		pos_diff := vec2{get_axis(.A, .D), get_axis(.W, .S)} * PLAYER_MAX_SPEED
-		//flip if needed
-		if pos_diff.x != 0 && math.sign(pos_diff.x) != math.sign(player.scale.x) {
-			player.scale.x *= -1
-		}
-		//move in that direction
-		player.inst_velocity = pos_diff * PLAYER_MAX_SPEED * dt
-		if linalg.length(player.inst_velocity) > PLAYER_MAX_SPEED * dt {
-			player.inst_velocity = linalg.normalize(player.inst_velocity) * PLAYER_MAX_SPEED * dt
-		}
-		// player.acceleration = movement_vec * multiplier
-		CAM_LERP_AMOUNT :: 0.15
-		// TODO why is this so nauseating when the player starts/stops moving?
-		// //lerp cam to position ahead of player
-		// CAM_LEAD :: 0.3
-		// cam_target := player.position + player.velocity * CAM_LEAD
-		// cam.position += (cam_target - cam.position) * CAM_LERP_AMOUNT
-		desired_anim_name: AnimationName
-		desired_anim_speed: uint = 5
-		{
-			if abs(pos_diff.x) > 0 {
-				desired_anim_name = .Squatman_Run_Right
-			} else {
-				if pos_diff.y < 0 {
-					desired_anim_name = .Squatman_Run_Up
-					desired_anim_speed = 8
-				} else if pos_diff.y > 0 {
-					desired_anim_name = .Squatman_Run_Down
-					desired_anim_speed = 8
-				} else {
-					desired_anim_name = .Squatman_Idle
-				}
-			}
-		}
-		if desired_anim_name != player.animation.anim.name {
-			player.animation = initial_animation_state(
-				make_animation(desired_anim_name, desired_anim_speed),
-			)
-		}
-		if player.invulnerable {
-			player.invuln_time_remaining -= dt
-			if int(f64(game.frame_counter) / 4) % 2 == 0 {
-				player.shader = .SolidColor
-			} else {
-				player.shader = .None
-			}
-			if player.invuln_time_remaining <= 0 {
-				player.invulnerable = false
-				player.shader = .None
-			}
-		}
-		if desired_anim_name != .Squatman_Idle {
-			player.display_transform = Transform {
-				position = 5 * {
-						math.sin(f64(game.frame_counter) / 4),
-						math.cos(f64(game.frame_counter) / 4),
-					},
-				rotation = 5 * math.sin(f64(game.frame_counter) / 4),
-			}
-		} else {
-			player.display_transform = {}
-			squish := f64(game.frame_counter) / 8
-			player.display_transform.scale = {1, 1} + 0.02 * {math.sin(squish), -math.sin(squish)}
-		}
-		game.main_camera.position +=
-			(player.position - game.main_camera.position) * CAM_LERP_AMOUNT
-		timer->time("move player")
-		mouse_pos := screen_to_world(linalg.to_f64(get_mouse_viewport_pos()), screen_conversion)
-		if rl.IsMouseButtonPressed(.LEFT) {
-			player_center := get_world_center(game.player_handle)
-			bullet_diff := mouse_pos - player_center
-			bullet_velocity :=
-				linalg.normalize(bullet_diff) * PLAYER_BULLET_SPEED + player.velocity * 0.5
-			firing_pos :=
-				player_center -
-				{0, 50} +
-				linalg.normalize(bullet_velocity) * PLAYER_BULLET_FIRING_POSITION_OFFSET
-			bullet := spawn_bullet(firing_pos, bullet_velocity, layer = .PlayerBullet)
-			play_sound(get_sound("light-fire.wav"))
-		}
-		timer->time("spawn bullets")
-	case .Dead:
-		player.velocity = 0
-		if player.animation.anim.name != .Squatman_Dead {
-			player.animation = initial_animation_state(
-				make_animation(.Squatman_Dead, loop = false),
-			)
-		}
-		if player.color.a < 20 {
-			print("loading game")
-			load_game(game, "save.cbor")
-		}
-		if (player.color.a - 2) < player.color.a {
-			player.color.a -= 2
-		}
-	}
-	should_save_game := false
-	{
-		player_collisions, has_collisions := game.collisions[game.player_handle]
-		for collision in player_collisions {
-			if collision.type != .start {continue}
-			#partial switch other_handle in collision.b {
-			case GameObjectHandle:
-				other, ok := get_object(other_handle)
-				if .Checkpoint in other.tags {
-					should_save_game = true
-				}
-			}
-		}
-	}
-	timer->time("check player collisions")
-	//update score label
-	{
-		score_label := hm.get(&game.objects, player.score_label_handle)
-		if player.score > 0 {
-			delete(score_label.text)
-			score_label.text = fmt.aprintf("Score: %d", player.score)
-		} else {
-			score_label.text = ""
-		}
-	}
-	{it := object_iter()
-		for bullet, bullet_handle in all_objects_with_variant(&it, Bullet) {
-			switch bullet.state {
-			case .Alive:
-				collisions, has_collisions := game.collisions[bullet_handle]
-				if !has_collisions {continue}
-				//generally bullet gets destroyed on impact with stuff
-				//but cannot default to destroying it and set false for non-fatal collisions
-				//because we want fatal collisions to take precedence
-				//otherwise bullet appears to clip through things
-				should_kill_bullet := false
-				for collision in collisions {
-					if collision.type != .start {continue}
-					switch other_handle in collision.b {
-					case GameObjectHandle:
-						if other_handle == bullet.last_hit_object {continue}
-						other, ok := hm.get(&game.objects, other_handle)
-						if !ok {continue}
-						knockback_vec :=
-							(other.position - bullet.position) * BULLET_KNOCKBACK_STRENGTH
-						//TODO operate on tags
-						#partial switch other.hitbox.layer {
-						case .Bullet, .PlayerBullet, .EnemyBullet:
-						//bullets should phase through each other - don't do anything
-						case .Default:
-							if .Checkpoint not_in other.tags {
-								should_kill_bullet = true
-							}
-						case .Enemy:
-							should_kill_bullet = true
-							enemy := other
-							e := &enemy.variant.(Enemy)
-							e.health -= 1
-							apply_knockback(knockback_vec, enemy)
-							play_sound(get_sound("death.wav"), 0.3)
-							//did we just kill?
-							if e.health <= 0 {
-								e.state = .Dead
-								player.score += 1
-							}
-						case .Player:
-							should_kill_bullet = true
-							player := other
-							//take damage
-							apply_knockback(knockback_vec, player)
-							play_sound(get_sound("hit.wav"))
-							player_take_damage(get_object(player, Player))
-						case:
-							should_kill_bullet = true
-						}
-					case TilemapTileId:
-						should_kill_bullet = true
-						tile := get_tile(other_handle)
-						#partial switch TILE_PROPERTIES[tile.type].layer {
-						}
-						play_sound(get_sound("hit-dud.wav"))
-					}
-					if should_kill_bullet {break}
-				}
-				if should_kill_bullet {
-					bullet.tags -= {.Collide}
-					bullet.state = .Dead
-					bullet.animation = make_animation_state(.Explosion, 2)
-					//TODO move bullet to point of impact - for this need to remember fatal collision
-					bullet.velocity = {}
-					bullet.scale *= 1.4
-					bullet.rotation += f64(rand.int_max(3)) * 90
-				}
-			case .Dead:
-				num_anim_frames_left := int(
-					bullet.animation.anim.last_frame - bullet.animation.frame,
-				)
-				if num_anim_frames_left <= 0 {
-					hm.remove(&game.objects, bullet_handle)
-				}
-			}
-		}
-	}
-	timer->time("handle bullet hits")
-	{it := object_iter()
-		printed_details := false
-		for enemy, h in all_objects_with_variant(&it, Enemy) {
-			activate_distance :: TILE_SIZE * 50
-			switch enemy.state {
-			case .Alive_Inactive:
-				player_diff := player.position - enemy.position
-				if linalg.length(player_diff) <= activate_distance {
-					enemy.state = .Alive_Active
-				}
-			case .Alive_Active:
-				if uint(game.frame_counter) %% PATHFINDING_UPDATE_INTERVAL ==
-				   enemy.pathfind_index {
-					delete(enemy.path)
-					enemy.path = TilePath(
-						slice.clone(get_a_star_path(enemy.position, player.position)),
-					)
-				}
-				sees_player := has_line_of_sight(enemy.position, player.position)
-				line_color := sees_player ? set_alpha(rl.GREEN, 100) : set_alpha(rl.RED, 100)
-				// for i in 0 ..< len(enemy.path) - 1 {
-				// 	draw_debug_line(
-				// 		get_tile_center(enemy.path[i]),
-				// 		get_tile_center(enemy.path[i + 1]),
-				// 		5,
-				// 		line_color,
-				// 	)
-				// }
-				player_sense_distance :: TILE_SIZE * 50
-				target: vec2 = player.position
-				// print_line_of_sight( enemy.position, player.position)
-				if !sees_player && len(enemy.path) > 0 {
-					epsilon :: 0.00001
-					target = get_farthest_visible_point_in_path(
-						enemy.position + epsilon,
-						enemy.path,
-					)
-					// draw_debug_circle(target, color = set_alpha(rl.BLUE, 100), filled = false)
-				}
-				player_diff := player.position - enemy.position
-				target_diff := target - enemy.position
-				enemy_speed :: 300
-				dist_to_player := linalg.length(player_diff)
-				if dist_to_player > activate_distance {
-					enemy.state = .Alive_Inactive
-				} else if dist_to_player < player_sense_distance {
-					if linalg.length(target_diff) < TILE_SIZE * 0.1 {
-						enemy.inst_velocity = 0
-					} else {
-						enemy.inst_velocity = linalg.normalize(target_diff) * enemy_speed
-					}
-				} else {
-					spawn_diff := enemy.spawn_point - enemy.position
-					if linalg.length(spawn_diff) < TILE_SIZE * 0.1 {
-						enemy.inst_velocity = 0
-					} else {
-						enemy.inst_velocity = linalg.normalize(spawn_diff) * enemy_speed
-					}
-				}
-				squish := f64(game.frame_counter + u64(enemy.pathfind_index)) / 4
-				enemy.display_transform.scale =
-					vec2{1, 1} + 0.07 * vec2{math.sin(squish), -math.sin(squish)}
-			case .Dead:
-				hm.remove(&game.objects, h)
-				hm.remove(&game.objects, enemy.health_bar)
-				play_sound(get_sound("augh.wav"))
-			}
-		}
-	}
-	timer->time("move enemies")
-	{it := object_iter()
-		for enemy, h in all_objects_with_variant(&it, Enemy) {
-			collisions, has_collisions := game.collisions[h]
-			if !has_collisions {continue}
-			for collision in collisions {
-				if collision.type == .stop {continue}
-				if other_handle, ok := collision.b.(GameObjectHandle); ok {
-					other, ok := hm.get(&game.objects, other_handle)
-					if !ok {continue} 	//e.g. deleted bullet
-					#partial switch other.hitbox.layer {
-					case .Enemy:
-						circle_jostle_resolve(h, other_handle)
-					case .Player:
-						knockback_vec :=
-							(other.position - enemy.position) * ENEMY_CONTACT_KNOCKBACK_STRENGTH
-						player := get_object(other, Player)
-						if player.state == .Alive {
-							//take damage
-							if player.invulnerable {continue}
-							rl.PlaySound(get_sound("hit.wav"))
-							apply_knockback(knockback_vec, player)
-							player_take_damage(player)
-						}
-					}
-				}
-			}
-		}
-	}
-	timer->time("resolve enemy collisions")
-	{it := object_iter()
-		for e1, h1 in all_objects_with_variant(&it, Enemy) {
-			it_inner := it
-			for e2, h2 in all_objects_with_variant(&it_inner, Enemy) {
-				if h1 == h2 {continue}
-				if e1.state != .Alive_Active || e2.state != .Alive_Active {continue}
-				ENEMY_REPULSION_STRENGTH :: 150000 // why does it need to be so high? maybe cause length squared is enormous?
-				EPSILON_DIFF :: 0.01
-				diff := e1.position - e2.position
-				if diff == {0, 0} {
-					//prevent div by 0
-					diff = {EPSILON_DIFF, EPSILON_DIFF}
-				}
-				len2 := linalg.length2(diff)
-				MIN_LENGTH :: EPSILON_DIFF
-				MAX_LENGTH_FOR_REPULSION :: TILE_SIZE * 10
-				if len2 > MAX_LENGTH_FOR_REPULSION * MAX_LENGTH_FOR_REPULSION {continue}
-				if len2 < MIN_LENGTH * MIN_LENGTH {len2 = MIN_LENGTH} 	//prevent divide by almost zero yielding huge numbers
-				e1.inst_velocity += dt * diff * ENEMY_REPULSION_STRENGTH / len2
-				e2.inst_velocity -= dt * diff * ENEMY_REPULSION_STRENGTH / len2
-			}
-		}
-	}
-	timer->time("resolve enemy-enemy repulsion")
-	{it := object_iter()
-		update_health_bar :: proc(h: Health) {
-			bar := get_object(h.health_bar, UIStatBar)
-			bar.current_value = f64(h.health)
-			bar.max_value = f64(h.max_health)
-			bar.num_ticks = h.max_health
-			if bar.current_value == bar.max_value {
-				bar.tags += {.Disabled}
-			} else {
-				bar.tags -= {.Disabled}
-			}
-		}
-		for enemy, h in all_objects_with_variant(&it, Enemy) {
-			update_health_bar(enemy.health_info)
-		}
-		update_health_bar(player.health_info)
-	}
-	timer->time("update health bar displays")
-	if should_save_game {
-		save_game(game, "save.cbor")
-		timer->time("save game")
-	}
-}
-
-atomic_chair_stop :: proc() {
-	reset()
+	return t
 }

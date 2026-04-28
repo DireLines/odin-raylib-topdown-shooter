@@ -16,19 +16,42 @@ RenderInfo :: struct {
 	color:                  rl.Color,
 	using text_render_info: TextRenderInfo,
 	render_layer:           uint,
-	using import_mode:      TextureImportMode,
+	mapping_mode:           TextureMappingMode,
 	draw:                   proc(obj: ^GameObject) `cbor:"-"`, //custom draw proc, not used unless .CustomDraw is on in object's tags
 }
 
-TextureImportMode :: struct {
+//how a texture rect gets translated to world coordinates
+//if texture rect
+MapToUnitRect :: distinct struct{} //map the texture rect to a 1x1 square in world units (default option)
+MapToWorldRect :: distinct vec2 //map the texture rect to the provided rect in world units
+MapWithDefaultScale :: distinct struct{} //keep the texture's aspect ratio, using the global default scale factor (TEXTURE_PIXELS_PER_WORLD_UNIT)
+MapWithScaleFactor :: distinct f64 //keep the texture's aspect ratio, using some scale factor besides the global default
+TextureMappingOption :: union {
+	MapToUnitRect,
+	MapToWorldRect,
+	MapWithDefaultScale,
+	MapWithScaleFactor,
+}
+
+//when importing an animation, the textures could be different sizes on different frames
+//this is relevant when autosizing the scale or hitbox for an animated object
+AnimationMappingOption :: enum {
+	FirstFrame,
+	AvgFrame,
+	SmallestFrame,
+	BiggestFrame,
+	LastFrame,
+}
+
+TextureMappingMode :: struct {
+	//how a texture rect gets translated to world coordinates
+	mapping:                    TextureMappingOption,
+	animation_mapping_option:   AnimationMappingOption,
+
 	//whether to offset sprite to account for transparent border inside original document,
 	//which otherwise gets trimmed off when packing into atlas.
 	//usually desired for animations
 	include_transparent_border: bool,
-	//whether to map sprite to a 1x1 square in world coordinates or to the texture's actual dimensions.
-	//usually desired for animated sprites, but then since the texture determines the object's size
-	//the rest of the code needs to account for it, for hitboxes and such
-	keep_original_dimensions:   bool,
 }
 TextAlignment :: enum {
 	Center,
@@ -55,35 +78,35 @@ DEBUG_RED :: rl.RED
 DEBUG_GREEN :: rl.GREEN
 DEBUG_BLUE :: rl.BLUE
 //drawing things on the screen
-@(rodata)
-SQUARE_CORNERS := [4]vec2 {
-	{0, 0}, //top left
-	{0, 1}, //bottom left
-	{1, 1}, //bottom right
-	{1, 0}, //top right
-}
 draw_texture_quad :: proc(
 	texture: rl.Texture2D,
 	source: Rect,
 	transform: mat3,
 	color: rl.Color = rl.WHITE,
 	screen_space: bool = false,
-	keep_original_dimensions: bool = false,
+	mapping_mode: TextureMappingMode = {},
 ) {
 	rlgl.Begin(rlgl.QUADS); defer rlgl.End()
 	rlgl.SetTexture(texture.id); defer rlgl.SetTexture(0)
 	rlgl.Color4ub(color.r, color.g, color.b, color.a)
-	corners := SQUARE_CORNERS
-	if keep_original_dimensions {
-		corners = [4]vec2 {
-			{0, 0}, //top left
-			{0, f64(source.height) / TEXTURE_PIXELS_PER_WORLD_UNIT}, //bottom left
-			{
-				f64(source.width) / TEXTURE_PIXELS_PER_WORLD_UNIT,
-				f64(source.height) / TEXTURE_PIXELS_PER_WORLD_UNIT,
-			}, //bottom right
-			{f64(source.width) / TEXTURE_PIXELS_PER_WORLD_UNIT, 0}, //top right
-		}
+	size: vec2
+	scale_factor: f64 = 1 / TEXTURE_PIXELS_PER_WORLD_UNIT
+	switch m in mapping_mode.mapping {
+	case MapToUnitRect:
+		size = {1, 1}
+	case MapToWorldRect:
+		size = vec2(m)
+	case MapWithDefaultScale:
+		size = {f64(source.width), f64(source.height)}
+	case MapWithScaleFactor:
+		size = {f64(source.width), f64(source.height)}
+		scale_factor = f64(m)
+	}
+	corners: [4]vec2 = {
+		{0, 0}, //top left
+		{0, f64(size.y) * scale_factor}, //bottom left
+		{f64(size.x) * scale_factor, f64(size.y) * scale_factor}, //bottom right
+		{f64(size.x) * scale_factor, 0}, //top right
 	}
 	screen_corners: [4]vec2
 	if screen_space {
@@ -197,22 +220,14 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		}
 		transform *= pivot(obj.transform) * apply(disp_transform) * unpivot(obj.transform)
 	}
-	parent_handle, has_parent := obj.parent_handle.?
 	if .Sprite in obj.tags {
 		texture := atlas
 		source := obj.texture.rect
-		if obj.include_transparent_border {
+		if obj.mapping_mode.include_transparent_border {
 			offset := vec2{f64(obj.texture.offset_left), f64(obj.texture.offset_top)}
 			transform = transform * translate_vec2(offset)
 		}
-		draw_texture_quad(
-			texture,
-			source,
-			transform,
-			obj.color,
-			final_transform.screen_space,
-			obj.keep_original_dimensions,
-		)
+		draw_texture_quad(texture, source, transform, obj.color, final_transform.screen_space)
 	}
 	if .Text in obj.tags {
 		font := obj.font.? or_else global_default_font

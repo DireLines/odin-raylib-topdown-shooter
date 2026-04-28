@@ -152,7 +152,7 @@ GameObject :: struct {
 	display_transform:         Transform, //transform optionally applied on top of main transform to do programmatic animations
 	using physics:             PhysicsInfo,
 	using render_info:         RenderInfo,
-	spawn_opts:                SpawnOptions,
+	spawn_opts:                SpawnOptionsFromTexture,
 	animation:                 AnimationState,
 	hitbox:                    Hitbox, //TODO: hitboxes: Small_Array(MAX_HITBOXES_PER_OBJECT, Hitbox) // multiple hitboxes
 	static:                    bool, //this object promises not to change its local or global transform, allowing some optimizations
