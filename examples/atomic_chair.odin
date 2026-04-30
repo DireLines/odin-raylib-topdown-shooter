@@ -24,7 +24,7 @@ import rl "vendor:raylib"
 GAME_NAME :: "atomic chair"
 TILE_SIZE :: 150
 MENU_BUTTON_SPACING :: 0.15
-MENU_SCREEN_DIMS :: vec2{WINDOW_WIDTH, WINDOW_HEIGHT}
+MENU_SCREEN_DIMS :: vec2{VIEWPORT_WIDTH, VIEWPORT_HEIGHT}
 PLAYER_MAIN_COLOR :: rl.Color{99, 155, 255, 255}
 BASIC_ENEMY_COLOR :: rl.Color{20, 205, 168, 255}
 FLOOR_MAP_COLOR :: rl.Color{128, 128, 128, 255}
@@ -89,7 +89,7 @@ game_start :: proc() {
 	game.player_spawn_point = get_tile_center(player_spawn_tile)
 	game.main_camera.position = game.player_spawn_point
 
-	menu_container := spawn_object(
+	menu_container := spawn_object_from_def(
 		GameObject{name = "menu container", tags = {.DoNotSerialize, .DontDestroyOnLoad}},
 	)
 	game.menu_container = menu_container.handle
@@ -391,7 +391,7 @@ spawn_checkpoint :: proc(pos: vec2) -> ^GameObject {
 		hitbox = {shape = AABB{min = -CHECKPOINT_SIZE / 2, max = CHECKPOINT_SIZE / 2}},
 		tags = {.Collide, .Sprite, .Checkpoint},
 	}
-	return spawn_object(checkpoint)
+	return spawn_object_from_def(checkpoint)
 }
 
 get_health_bar_def :: proc(h: Health) -> UIStatBar {
@@ -427,7 +427,7 @@ spawn_player :: proc() -> GameObjectHandle {
 		tags = {.Player, .Collide, .Sprite},
 		variant = Player{health = 6, max_health = 6, state = .Alive, invuln_cooldown = 1.0},
 	}
-	player := spawn_object(player_def, Player)
+	player := spawn_object_from_def(player_def, Player)
 	{
 		score_label := GameObject {
 			name = "score label",
@@ -448,7 +448,7 @@ spawn_player :: proc() -> GameObjectHandle {
 			tags = {.Text},
 			parent_handle = game.screen_space_parent_handle,
 		}
-		player.score_label_handle = spawn_object(score_label).handle
+		player.score_label_handle = spawn_object_from_def(score_label).handle
 	}
 	{
 		health_bar_def := get_health_bar_def(player.health_info)
@@ -456,7 +456,7 @@ spawn_player :: proc() -> GameObjectHandle {
 		health_bar_def.disp_length = PLAYER_HEALTH_BAR_LENGTH
 		health_bar_def.disp_height = 30
 		player.health_bar =
-			spawn_ui_stat_bar("player health", {WINDOW_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10}, game.screen_space_parent_handle, health_bar_def).handle
+			spawn_ui_stat_bar("player health", {VIEWPORT_WIDTH / 2 - PLAYER_HEALTH_BAR_LENGTH / 2, 10}, game.screen_space_parent_handle, health_bar_def).handle
 	}
 	return player.handle
 }
@@ -477,7 +477,7 @@ spawn_enemy :: proc(pos: vec2, enemy_type: EnemyType) -> GameObjectHandle {
 			pathfind_index = rand.uint_range(0, PATHFINDING_UPDATE_INTERVAL),
 		},
 	}
-	enemy := spawn_object(enemy_obj, Enemy)
+	enemy := spawn_object_from_def(enemy_obj, Enemy)
 	enemy.texture = atlas_textures[.Enemy_Face]
 	enemy.color = rl.WHITE
 	obj_name := "enemy"
@@ -514,7 +514,7 @@ spawn_bullet :: proc(pos, vel: vec2, layer: CollisionLayer) -> GameObjectInst(Bu
 		tags = {.Bullet, .Collide, .Sprite},
 		variant = Bullet{nil, .Alive},
 	}
-	return spawn_object(bullet, Bullet)
+	return spawn_object_from_def(bullet, Bullet)
 }
 
 apply_knockback :: proc(knockback: vec2, obj: ^GameObject) {
@@ -653,7 +653,7 @@ spawn_menu_objects :: proc(container_handle: GameObjectHandle) {
 		//spawn buttons
 		titlebar_tex := atlas_textures[.Atomic_Chair_Title]
 		sc := vec2{titlebar_tex.rect.width, titlebar_tex.rect.height} / 50
-		titlebar := spawn_object(
+		titlebar := spawn_object_from_def(
 		GameObject {
 			name = GAME_NAME,
 			transform = {
@@ -882,11 +882,11 @@ atomic_chair_update :: proc(dt: f64) {
 			if int(f64(game.frame_counter) / 4) % 2 == 0 {
 				player.shader = .SolidColor
 			} else {
-				player.shader = .None
+				player.shader = .Default
 			}
 			if player.invuln_time_remaining <= 0 {
 				player.invulnerable = false
-				player.shader = .None
+				player.shader = .Default
 			}
 		}
 		if desired_anim_name != .Squatman_Idle {
