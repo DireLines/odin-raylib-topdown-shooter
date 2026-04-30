@@ -303,8 +303,14 @@ draw_tile :: proc(
 	}
 	m := translate(offset) * scale(scale_amt) * TILE_ROTATION_MATRICES[tile.rotation]
 	timer->count_toward("compute tile transforms")
+	texture := atlas
+	if info.shader == .PixelFilter ||
+	   info.shader == .Default && DEFAULT_SHADER_NAME == .PixelFilter ||
+	   info.bilinear {
+		texture = atlas_bilinear
+	}
 	if info.texture != atlas_textures[.None] {
-		draw_texture_quad(atlas, source, m, color)
+		draw_texture_quad(texture, source, m, color)
 		timer->count_toward("draw tile quads")
 	}
 	when draw_debug_shapes {
@@ -480,7 +486,7 @@ render :: proc() {
 
 	darkgray := rl.Color{32, 32, 30, 255}
 	rl.ClearBackground(darkgray)
-	curr_shader_name: ShaderName //tracking this to know when to switch shader modes, which is expensive
+	curr_shader_name: ShaderName = .None //tracking this to know when to switch shader modes, which is expensive
 	change_shader :: proc(s: ShaderName, curr: ^ShaderName) {
 		if curr^ == s {return}
 		if curr^ != .None {

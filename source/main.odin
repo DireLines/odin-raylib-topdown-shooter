@@ -10,13 +10,13 @@ game: ^Game //global game memory
 IS_WEB :: ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32
 
 //controls
-BASE_VIEWPORT_WIDTH :: 1.2
+BASE_VIEWPORT_WIDTH :: 1
 // BASE_VIEWPORT_WIDTH :: 2
 FULLSCREEN :: false
 VIEWPORT_WIDTH :: 1200 * BASE_VIEWPORT_WIDTH
 VIEWPORT_HEIGHT :: 720 * BASE_VIEWPORT_WIDTH
-INIT_WINDOW_WIDTH :: 1200 * 1.2
-INIT_WINDOW_HEIGHT :: 720 * 1.2
+INIT_WINDOW_WIDTH :: 1200
+INIT_WINDOW_HEIGHT :: 720
 TARGET_FPS :: 60
 TEXTURE_PIXELS_PER_WORLD_UNIT :: 128 //at default scale of {1,1}
 SCREEN_PIXELS_PER_WORLD_UNIT: f64 : 0.75 * (VIEWPORT_WIDTH / INIT_WINDOW_WIDTH) //at initial camera zoom of 1
@@ -220,6 +220,7 @@ game_init_raylib :: proc(game: ^Game) {
 		nil,
 		strings.clone_to_cstring(prepend_version_tag(PIXEL_FILTER_SHADER)),
 	)
+	game.shaders[.Default] = game.shaders[DEFAULT_SHADER_NAME]
 
 	// Load atlas from ATLAS_DATA, which was stored in the executable at compile-time.
 	atlas_image := rl.LoadImageFromMemory(".png", raw_data(ATLAS_DATA), i32(len(ATLAS_DATA)))

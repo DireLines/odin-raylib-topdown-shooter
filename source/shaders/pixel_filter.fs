@@ -3,9 +3,11 @@
 precision mediump float;
 #endif
 in vec2 fragTexCoord; 
+in vec4 fragColor;
 uniform sampler2D texture0;
-uniform float zoom;
+uniform vec4 colDiffuse;
 out vec4 finalColor;
+
 
 vec2 uv_klems (vec2 uv, vec2 texture_size ) {
     vec2 pixels = uv * texture_size + 0.5;
@@ -25,5 +27,5 @@ void main() {
             vec2(textureSize(texture0, 0)
             )
         )
-    );
+    ) * fragColor * colDiffuse;
 }
