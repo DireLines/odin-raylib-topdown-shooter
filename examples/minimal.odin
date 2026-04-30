@@ -8,6 +8,7 @@ package game
 //close to the minimal compiling example for the engine
 
 GAME_NAME :: "my game"
+TILE_SIZE :: 150
 
 //game-specific initialization logic (run once when game is started)
 //typically this will be "set up the main menu"
