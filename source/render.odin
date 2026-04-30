@@ -489,10 +489,13 @@ render :: proc() {
 	curr_shader_name: ShaderName = .None //tracking this to know when to switch shader modes, which is expensive
 	change_shader :: proc(s: ShaderName, curr: ^ShaderName) {
 		if curr^ == s {return}
-		if curr^ != .None {
+		is_none :: proc(s: ShaderName) -> bool {
+			return s == .None || s == .Default && DEFAULT_SHADER_NAME == .None
+		}
+		if !is_none(curr^) {
 			rl.EndShaderMode()
 		}
-		if s != .None {
+		if !is_none(s) {
 			rl.BeginShaderMode(game.shaders[s])
 		}
 		curr^ = s
