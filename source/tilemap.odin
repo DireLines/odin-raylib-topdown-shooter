@@ -5,7 +5,7 @@ import "core:math/rand"
 import maps "mapgen"
 import rl "vendor:raylib"
 
-TilemapTileId :: distinct [2]int //TODO: TileId name is in use by atlas.odin, investigate the intended way to generate tilemaps there
+TileId :: distinct [2]int //TODO: TileId name is in use by atlas.odin, investigate the intended way to generate tilemaps there
 CardinalDirection :: enum {
 	North,
 	East,
@@ -54,7 +54,7 @@ load_tilemap_chunk :: proc(id: ChunkId) -> (tilemap: TilemapChunk) {
 	min_corner, _ := get_tilemap_corners(id)
 	for i in 0 ..< CHUNK_WIDTH_TILES {
 		for j in 0 ..< CHUNK_HEIGHT_TILES {
-			tilemap[i][j] = get_starting_tile(TilemapTileId{min_corner.x + i, min_corner.y + j})
+			tilemap[i][j] = get_starting_tile(TileId{min_corner.x + i, min_corner.y + j})
 		}
 	}
 	return tilemap
@@ -65,9 +65,9 @@ unload_tilemap_chunk :: proc(id: ChunkId) {
 // Flood-fills the tilemap starting from the tile at player_pos, stopping at
 // Wall tiles, and returns the set of every chunk that contains a reached tile.
 // Uses the temp allocator internally; the returned map uses the default allocator.
-get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
-	visited := make(map[TilemapTileId]struct{}, allocator = context.temp_allocator)
-	queue := make([dynamic]TilemapTileId, allocator = context.temp_allocator)
+get_chunks_in_room :: proc(start_tile: TileId) -> map[ChunkId]struct{} {
+	visited := make(map[TileId]struct{}, allocator = context.temp_allocator)
+	queue := make([dynamic]TileId, allocator = context.temp_allocator)
 	chunks := make(map[ChunkId]struct{})
 
 	if TILE_PROPERTIES[get_tile(start_tile).type].resolve {
@@ -101,7 +101,7 @@ get_chunks_in_room :: proc(start_tile: TilemapTileId) -> map[ChunkId]struct{} {
 	return chunks
 }
 
-get_tile :: proc(id: TilemapTileId) -> Tile {
+get_tile :: proc(id: TileId) -> Tile {
 	//TODO cannot assume the tilemap generates quickly enough to hang on loading in any particular frame
 	// this should already be loaded by a chunk loader/unloader process
 	// when that's done, put back this warning
@@ -110,10 +110,10 @@ get_tile :: proc(id: TilemapTileId) -> Tile {
 	return tilemap[id.x %% CHUNK_WIDTH_TILES][id.y %% CHUNK_HEIGHT_TILES]
 }
 
-get_neighbors :: proc(id: TilemapTileId) -> [4]TilemapTileId {
+get_neighbors :: proc(id: TileId) -> [4]TileId {
 	return {{id.x, id.y + 1}, {id.x, id.y - 1}, {id.x + 1, id.y}, {id.x - 1, id.y}}
 }
-is_surrounded_by_same_tile :: proc(id: TilemapTileId) -> bool {
+is_surrounded_by_same_tile :: proc(id: TileId) -> bool {
 	t := get_tile(id)
 	neighbors := get_neighbors(id)
 	#unroll for i in 0 ..< 4 {
@@ -125,26 +125,26 @@ is_surrounded_by_same_tile :: proc(id: TilemapTileId) -> bool {
 	return true
 }
 
-get_tile_aabb :: proc(id: TilemapTileId) -> AABB {
+get_tile_aabb :: proc(id: TileId) -> AABB {
 	top_left := vec2{f64(id.x) * TILE_SIZE, f64(id.y) * TILE_SIZE}
 	return {top_left, top_left + TILE_SIZE}
 }
 
-get_containing_tile :: proc(p: vec2) -> TilemapTileId {
+get_containing_tile :: proc(p: vec2) -> TileId {
 	return {int(math.floor(p.x / TILE_SIZE)), int(math.floor(p.y / TILE_SIZE))}
 }
 
 
 TilemapIterator :: struct {
-	min, max: TilemapTileId,
-	curr:     TilemapTileId,
+	min, max: TileId,
+	curr:     TileId,
 }
-tilemap_make_iter :: proc(a, b: TilemapTileId) -> TilemapIterator {
-	min: TilemapTileId = linalg.min(a, b)
-	max: TilemapTileId = linalg.max(a, b)
+tilemap_make_iter :: proc(a, b: TileId) -> TilemapIterator {
+	min: TileId = linalg.min(a, b)
+	max: TileId = linalg.max(a, b)
 	return {min = min, max = max, curr = min}
 }
-tilemap_iter :: proc(it: ^TilemapIterator) -> (val: TilemapTileId, has_next: bool) {
+tilemap_iter :: proc(it: ^TilemapIterator) -> (val: TileId, has_next: bool) {
 	if it.curr.y > it.max.y {
 		return
 	}
@@ -158,8 +158,8 @@ tilemap_iter :: proc(it: ^TilemapIterator) -> (val: TilemapTileId, has_next: boo
 	return
 }
 
-get_tiles_between :: proc(a, b: TilemapTileId) -> []TilemapTileId {
-	result := [dynamic]TilemapTileId{}
+get_tiles_between :: proc(a, b: TileId) -> []TileId {
+	result := [dynamic]TileId{}
 	it := tilemap_make_iter(a, b)
 	for tile in tilemap_iter(&it) {
 		append(&result, tile)
@@ -167,18 +167,14 @@ get_tiles_between :: proc(a, b: TilemapTileId) -> []TilemapTileId {
 	return result[:]
 }
 
-get_tilemap_corners_chunk :: proc(id: ChunkId) -> (min, max: TilemapTileId) {
+get_tilemap_corners_chunk :: proc(id: ChunkId) -> (min, max: TileId) {
 	return get_tilemap_corners_aabb(get_chunk_aabb(id))
 }
-get_tilemap_corners_aabb :: proc(aabb: AABB) -> (min, max: TilemapTileId) {
+get_tilemap_corners_aabb :: proc(aabb: AABB) -> (min, max: TileId) {
 	return get_containing_tile(aabb.min), get_containing_tile(aabb.max)
 }
 
-get_tilemap_corners_tile_list :: proc(
-	tiles: []TilemapTileId,
-) -> (
-	min_corner, max_corner: TilemapTileId,
-) {
+get_tilemap_corners_tile_list :: proc(tiles: []TileId) -> (min_corner, max_corner: TileId) {
 	if len(tiles) == 0 {
 		return
 	}
@@ -190,7 +186,7 @@ get_tilemap_corners_tile_list :: proc(
 	}
 	return min_corner, max_corner
 }
-get_tile_center :: proc(id: TilemapTileId) -> vec2 {
+get_tile_center :: proc(id: TileId) -> vec2 {
 	aabb := get_tile_aabb(id)
 	return (aabb.min + aabb.max) / 2
 }

@@ -264,7 +264,7 @@ CEILING_SHIFT_PROPORTION :: 0.55
 CEILING_OFFSET: vec2 = {0, -TILE_SIZE * CEILING_SHIFT_PROPORTION}
 TILE_ROTATION_MATRICES: [CardinalDirection]mat3
 draw_tile :: proc(
-	id: TilemapTileId,
+	id: TileId,
 	render_layer: uint,
 	timer: ^Timer,
 	color: rl.Color,
@@ -453,7 +453,7 @@ render :: proc() {
 		}
 	}
 	chunks_near_cam = get_chunks_near_cam(0)
-	tile_min, tile_max: TilemapTileId
+	tile_min, tile_max: TileId
 	for chunk, i in chunks_near_cam {
 		chunk_min, chunk_max := get_tilemap_corners(chunk)
 		if i == 0 {

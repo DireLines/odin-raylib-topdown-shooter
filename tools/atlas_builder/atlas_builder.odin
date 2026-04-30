@@ -50,12 +50,6 @@ ATLAS_ODIN_OUTPUT_PATH :: "source/atlas.odin"
 // Set to false to not crop atlas after generation.
 ATLAS_CROP :: true
 
-// If you have a tileset (texture with tileset_) prefix, then this is says how many tiles wide it is
-TILESET_WIDTH :: 10
-
-// The NxN pixel size of each tile.
-TILE_SIZE :: 8
-
 // for package line at top of atlas Odin metadata file
 PACKAGE_NAME :: "game"
 
@@ -270,19 +264,7 @@ asset_name :: proc(path: string) -> string {
 	return fmt.tprintf("%s", name)
 }
 
-load_font :: proc(
-	filename: string,
-) -> // Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id
-
-
-	// Build a set of all PNG paths so description-file matching doesn't need os.exists.
-
-
-	// First pass: detect spritesheet description files (.json) and load their paired PNGs.
-	// A description file pairs with a PNG that shares the same path up to the extension.
-
-
-	Font {// Second pass: regular texture/tileset processing, skipping PNGs consumed by spritesheets.
+load_font :: proc(filename: string) -> Font { 	// Loads a tileset. Currently only supports .ase tilesets//first sort by type, then by orig id//cut off the rect type id to just keep orig id//cut off the rect type id to just keep orig id// Build a set of all PNG paths so description-file matching doesn't need os.exists.// First pass: detect spritesheet description files (.json) and load their paired PNGs.// A description file pairs with a PNG that shares the same path up to the extension.// Second pass: regular texture/tileset processing, skipping PNGs consumed by spritesheets.
 	font_data, err := os.read_entire_file(filename, context.allocator)
 	if err != nil {
 		log.warnf("oops no font found at %s", filename)
@@ -814,7 +796,6 @@ main :: proc() {
 	PackRectType :: enum {
 		Texture,
 		Glyph,
-		Tile,
 		ShapesTexture,
 		Spritesheet,
 	}
@@ -900,48 +881,6 @@ main :: proc() {
 				h = stbrp.Coord(sheet.size.y) + 1,
 			},
 		)
-	}
-
-	if tileset.pixels_size.x != 0 && tileset.pixels_size.y != 0 {
-		h := tileset.pixels_size.y / TILE_SIZE
-		w := tileset.pixels_size.x / TILE_SIZE
-		top_left := -tileset.offset
-
-		t_img := Image {
-			data   = tileset.pixels,
-			width  = tileset.pixels_size.x,
-			height = tileset.pixels_size.y,
-		}
-
-		for x in 0 ..< w {
-			for y in 0 ..< h {
-				tx := TILE_SIZE * x + top_left.x
-				ty := TILE_SIZE * y + top_left.y
-
-				all_blank := true
-				txx_loop: for txx in tx ..< tx + TILE_SIZE {
-					for tyy in ty ..< ty + TILE_SIZE {
-						if get_image_pixel(t_img, int(txx), int(tyy)) != {} {
-							all_blank = false
-							break txx_loop
-						}
-					}
-				}
-
-				if all_blank {
-					continue
-				}
-
-				append(
-					&pack_rects,
-					stbrp.Rect {
-						id = make_pack_rect_id(make_tile_id(x, y), .Tile),
-						w = TILE_SIZE + 2,
-						h = TILE_SIZE + 2,
-					},
-				)
-			}
-		}
 	}
 
 	append(&pack_rects, stbrp.Rect{id = make_pack_rect_id(0, .ShapesTexture), w = 11, h = 11})
@@ -1083,63 +1022,6 @@ main :: proc() {
 					append(&atlas_textures, ar)
 				}
 			}
-		case .Tile:
-			ix, iy := x_y_from_tile_id(rp.id)
-
-			x := TILE_SIZE * ix
-			y := TILE_SIZE * iy
-
-			top_left := -tileset.offset
-
-			t_img := Image {
-				data   = tileset.pixels,
-				width  = tileset.pixels_size.x,
-				height = tileset.pixels_size.y,
-			}
-
-			source := Rect{x + top_left.x, y + top_left.y, TILE_SIZE, TILE_SIZE}
-			dest := Rect{int(rp.x) + 1, int(rp.y) + 1, source.width, source.height}
-
-			draw_image(&atlas, t_img, source, {int(rp.x), int(rp.y)})
-
-			// Add padding to tiles by adding a pixel border around it and copying the nearest pixels
-			// there. This helps with bleeding when doing subpixel camera movements.
-
-			ts :: TILE_SIZE
-			// Top
-			{
-				psource := Rect{source.x, source.y, ts, 1}
-
-				draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y - 1)})
-			}
-
-			// Bottom
-			{
-				psource := Rect{source.x, source.y + ts - 1, ts, 1}
-
-				draw_image(&atlas, t_img, psource, {int(dest.x), int(dest.y + ts)})
-			}
-
-			// Left
-			{
-				psource := Rect{source.x, source.y, 1, ts}
-
-				draw_image(&atlas, t_img, psource, {int(dest.x - 1), int(dest.y)})
-			}
-
-			// Right
-			{
-				psource := Rect{source.x + ts - 1, source.y, 1, ts}
-
-				draw_image(&atlas, t_img, psource, {int(dest.x + ts), int(dest.y)})
-			}
-
-			at := Atlas_Tile_Rect {
-				rect  = dest,
-				coord = {ix, iy},
-			}
-
-			append(&atlas_tiles, at)
 		}
 	}
 
@@ -1331,35 +1213,6 @@ main :: proc() {
 			a.repeat,
 			a.document_size.x,
 			a.document_size.y,
-		)
-	}
-
-	fmt.fprintln(f, "}\n")
-
-
-	fmt.fprintln(f, "// All these are pre-generated so you can save tile IDs to data without")
-	fmt.fprintln(f, "// worrying about their order changing later.")
-	fmt.fprintln(f, "TileId :: enum {")
-	for y in 0 ..< TILESET_WIDTH {
-		for x in 0 ..< TILESET_WIDTH {
-			fmt.fprintf(f, "\tT0Y%vX%v,\n", y, x)
-		}
-	}
-	fmt.fprintln(f, "}")
-	fmt.fprintln(f, "")
-
-	fmt.fprintln(f, "atlas_tiles := #partial [TileId]Rect {")
-
-	for at in atlas_tiles {
-		fmt.fprintf(
-			f,
-			"\t.T0Y%vX%v = {{%v, %v, %v, %v}},\n",
-			at.coord.y,
-			at.coord.x,
-			at.rect.x,
-			at.rect.y,
-			at.rect.width,
-			at.rect.height,
 		)
 	}
 

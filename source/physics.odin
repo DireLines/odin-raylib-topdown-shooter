@@ -58,7 +58,7 @@ CollisionInfo :: union {
 Collision :: struct {
 	a, b: union {
 		GameObjectHandle,
-		TilemapTileId,
+		TileId,
 	},
 	info: CollisionInfo,
 	type: CollisionEventType,
@@ -91,7 +91,7 @@ get_containing_chunk :: proc(p: vec2) -> ChunkId {
 	return {int(math.floor(p.x / CHUNK_WIDTH)), int(math.floor(p.y / CHUNK_HEIGHT))}
 }
 
-get_containing_chunk_for_tile :: proc(id: TilemapTileId) -> ChunkId {
+get_containing_chunk_for_tile :: proc(id: TileId) -> ChunkId {
 	return {int(id.x / CHUNK_WIDTH_TILES), int(id.y / CHUNK_HEIGHT_TILES)}
 }
 get_chunks_between :: proc(a, b: ChunkId) -> []ChunkId {
@@ -253,7 +253,7 @@ physics_update :: proc(dt: f64) {
 				if h in game.prev_frame.collisions {
 					for prev_collision, i in game.prev_frame.collisions[h] {
 						#partial switch prev_coll_handle in prev_collision.b {
-						case TilemapTileId:
+						case TileId:
 							if prev_collision.type != .stop && prev_coll_handle == coll.b {
 								was_colliding_before = true
 							}
@@ -271,7 +271,7 @@ physics_update :: proc(dt: f64) {
 				current_coll_idx := -1
 				for current_coll, i in game.collisions[h] {
 					#partial switch coll_handle in current_coll.b {
-					case TilemapTileId:
+					case TileId:
 						if coll_handle == coll.b {
 							current_coll_idx = i
 						}
@@ -496,8 +496,8 @@ move_object :: proc(obj_handle: GameObjectHandle, dt: f64) -> []Collision {
 		will_collide := false
 		side_min: SideName
 		normal_min: vec2
-		tile_min: TilemapTileId
-		tiles_min := make([dynamic]TilemapTileId, allocator = context.temp_allocator) //in case of ties
+		tile_min: TileId
+		tiles_min := make([dynamic]TileId, allocator = context.temp_allocator) //in case of ties
 		offsets_needed := [SideName]bool{}
 		offset_threshold :: 1
 		tiles: TilemapIterator

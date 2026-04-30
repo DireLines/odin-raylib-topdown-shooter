@@ -483,11 +483,11 @@ rect_to_aabb :: proc(r: Rect) -> AABB {
 }
 
 //helpers for finding points to spawn stuff
-random_point_in_tile :: proc(id: TilemapTileId) -> vec2 {
+random_point_in_tile :: proc(id: TileId) -> vec2 {
 	aabb := get_tile_aabb(id)
 	return {rand.float64_range(aabb.min.x, aabb.max.x), rand.float64_range(aabb.min.y, aabb.max.y)}
 }
-is_point_in_tile :: proc(p: vec2, id: TilemapTileId) -> bool {
+is_point_in_tile :: proc(p: vec2, id: TileId) -> bool {
 	return is_point_in_aabb(p, get_tile_aabb(id))
 }
 random_point_in_circle :: proc(center: vec2, radius: f64) -> vec2 {
@@ -549,9 +549,9 @@ dda :: proc(a, b: vec2, STEP: f64 = 1) -> []vec2 {
 
 
 //all tiles intersecting the line segment from A to B
-tiles_intersecting_line :: proc(a, b: vec2) -> []TilemapTileId {
+tiles_intersecting_line :: proc(a, b: vec2) -> []TileId {
 	STEP: f64 = TILE_SIZE
-	tiles := make([dynamic]TilemapTileId, context.temp_allocator)
+	tiles := make([dynamic]TileId, context.temp_allocator)
 	diff := b - a
 	coord := math.abs(diff.x) > math.abs(diff.y) ? 0 : 1 //stepping horizontally or vertically?
 	if diff[coord] == 0 {
@@ -574,7 +574,7 @@ tiles_intersecting_line :: proc(a, b: vec2) -> []TilemapTileId {
 	step_to_grid_line := step_vector * (dist_to_grid_line / STEP)
 	p := a //point we're filling in the closest pixel to
 	dist_traveled: f64 = 0
-	t_prev: TilemapTileId
+	t_prev: TileId
 	for dist_traveled < diff[coord] {
 		t_prev = get_containing_tile(p)
 		p_grid := p + step_to_grid_line
@@ -639,14 +639,14 @@ print_line_of_sight :: proc(a, b: vec2) {
 
 }
 
-TilePath :: []TilemapTileId
-distance_between_tile_centers :: proc(a, b: TilemapTileId) -> f64 {
+TilePath :: []TileId
+distance_between_tile_centers :: proc(a, b: TileId) -> f64 {
 	return f64(linalg.distance(get_tile_center(a), get_tile_center(b))) / TILE_SIZE
 }
 //normal A* algorithm on the tilemap
 get_unoptimized_a_star_path :: proc(
 	a, b: vec2,
-	heuristic: proc(a, b: TilemapTileId) -> f64 = distance_between_tile_centers,
+	heuristic: proc(a, b: TileId) -> f64 = distance_between_tile_centers,
 	max_depth: f64 = 200,
 ) -> TilePath {
 	start := get_containing_tile(a)
@@ -656,7 +656,7 @@ get_unoptimized_a_star_path :: proc(
 	// Initially, only the start node is known.
 	// This is usually implemented as a min-heap or priority queue rather than a hash-set.
 	Candidate :: struct {
-		tile:  TilemapTileId,
+		tile:  TileId,
 		score: f64,
 	}
 	candidates: pq.Priority_Queue(Candidate)
@@ -667,15 +667,15 @@ get_unoptimized_a_star_path :: proc(
 
 	// For node n, cameFrom[n] is the node immediately preceding it on the cheapest path from the start
 	// to n currently known.
-	came_from := make(map[TilemapTileId]TilemapTileId, context.temp_allocator)
+	came_from := make(map[TileId]TileId, context.temp_allocator)
 
 	// For node n, cheapest_path_cost[n] is the currently known cost of the cheapest path from start to n.
-	cheapest_path_cost := make(map[TilemapTileId]f64, context.temp_allocator)
+	cheapest_path_cost := make(map[TileId]f64, context.temp_allocator)
 	cheapest_path_cost[start] = 0
 
 	// For node n, estimated_path_cost[n] := cheapest_path_cost[n] + heuristic(n). estimated_path_cost[n] represents our current best guess as to
 	// how cheap a path could be from start to finish if it goes through n.
-	estimated_path_cost := make(map[TilemapTileId]f64, context.temp_allocator)
+	estimated_path_cost := make(map[TileId]f64, context.temp_allocator)
 	estimated_path_cost[start] = heuristic(start, end)
 	max_tiles_considered := int(max_depth) * 5 //assume failure if not reached by this point - unless the map is incredibly maze-y this won't be a false negative
 	for pq.len(candidates) > 0 && num_tiles_considered < max_tiles_considered {
@@ -683,12 +683,9 @@ get_unoptimized_a_star_path :: proc(
 		candidate := pq.pop(&candidates)
 		current := candidate.tile
 		if current == end {
-			reconstruct_path :: proc(
-				came_from: map[TilemapTileId]TilemapTileId,
-				end: TilemapTileId,
-			) -> TilePath {
+			reconstruct_path :: proc(came_from: map[TileId]TileId, end: TileId) -> TilePath {
 				current := end
-				path := make([dynamic]TilemapTileId)
+				path := make([dynamic]TileId)
 				for (current in came_from) {
 					append(&path, current)
 					current = came_from[current]
@@ -746,7 +743,7 @@ get_a_star_path :: proc(a, b: vec2) -> TilePath {
 		//shortcuts don't make sense in short enough path
 		return unoptimized_path
 	}
-	path := make([dynamic]TilemapTileId, context.temp_allocator)
+	path := make([dynamic]TileId, context.temp_allocator)
 	curr_tile := unoptimized_path[0]
 	append(&path, curr_tile)
 	i := 0
