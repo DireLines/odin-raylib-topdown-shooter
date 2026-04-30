@@ -157,6 +157,7 @@ spawn_ui_button :: proc(
 		render_info = {
 			texture = tex,
 			color = rl.WHITE,
+			shader = .None,
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {text = text, font_size = UI_MAIN_FONT_SIZE},
 		},
@@ -201,6 +202,7 @@ spawn_ui_slider :: proc(
 		render_info = {
 			texture = handle_tex,
 			color = rl.WHITE,
+			shader = .None,
 			render_layer = uint(RenderLayer.UI),
 			text_render_info = {
 				text = get_slider_handle_text(
@@ -240,6 +242,7 @@ spawn_ui_slider :: proc(
 		},
 		render_info = {
 			texture = track_tex,
+			shader = .None,
 			color = {255, 255, 255, 100},
 			render_layer = uint(RenderLayer.UI) - 1,
 		},
