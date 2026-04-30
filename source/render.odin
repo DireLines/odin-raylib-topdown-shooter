@@ -10,9 +10,12 @@ import rb "ring_buffer"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 
+DEFAULT_SHADER_NAME :: ShaderName.PixelFilter
+
 RenderInfo :: struct {
 	texture:                AtlasTexture,
 	shader:                 ShaderName,
+	bilinear:               bool,
 	color:                  rl.Color,
 	using text_render_info: TextRenderInfo,
 	render_layer:           uint,
@@ -46,6 +49,7 @@ TextRenderInfo :: struct {
 }
 
 ShaderName :: enum {
+	Default, //allows setting a global default shader other than no shader
 	None,
 	PixelFilter,
 	SolidColor,
@@ -204,6 +208,11 @@ draw_object :: proc(obj: ^GameObject, final_transform: TransformScreenSpace) {
 		if obj.include_transparent_border {
 			offset := vec2{f64(obj.texture.offset_left), f64(obj.texture.offset_top)}
 			transform = transform * translate_vec2(offset)
+		}
+		if obj.shader == .PixelFilter ||
+		   obj.shader == .Default && DEFAULT_SHADER_NAME == .PixelFilter ||
+		   obj.bilinear {
+			texture = atlas_bilinear
 		}
 		draw_texture_quad(
 			texture,
@@ -469,8 +478,8 @@ render :: proc() {
 		rl.EndDrawing()
 	}
 
-	// darkgray := rl.Color{32, 32, 30, 255}
-	rl.ClearBackground(rl.BLACK)
+	darkgray := rl.Color{32, 32, 30, 255}
+	rl.ClearBackground(darkgray)
 	curr_shader_name: ShaderName //tracking this to know when to switch shader modes, which is expensive
 	change_shader :: proc(s: ShaderName, curr: ^ShaderName) {
 		if curr^ == s {return}
@@ -493,7 +502,11 @@ render :: proc() {
 				continue
 			}
 			if .Disabled in obj.tags {continue}
-			change_shader(obj.shader, &curr_shader_name)
+			target_shader := obj.shader
+			if obj.shader == .Default {
+				target_shader = DEFAULT_SHADER_NAME
+			}
+			change_shader(target_shader, &curr_shader_name)
 			transform_info := game.final_transforms[handle.idx]
 			if handle in objects_to_draw || game.paused || transform_info.screen_space {
 				draw_object(obj, transform_info)

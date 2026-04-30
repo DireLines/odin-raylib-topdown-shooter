@@ -14,13 +14,30 @@ TILE_SIZE :: 150
 //game-specific initialization logic (run once when game is started)
 //typically this will be "set up the main menu"
 game_start :: proc() {
-	potato := spawn_dynamic_object(
-		{tex = .Potato, pos = {-500, 0}, keep_original_dimensions = true, tags = {.Squish}},
+	guy_bilinear := spawn_dynamic_object(
+		{
+			tex = .Squatman0,
+			pos = {-500, 0},
+			keep_original_dimensions = true,
+			tags = {.Squish, .Grow},
+		},
 	)
-	potato2 := spawn_dynamic_object(
-		{tex = .Potato, pos = {500, 0}, keep_original_dimensions = true, tags = {.Squish}},
+	guy_bilinear.shader = .None
+	guy_bilinear.bilinear = true
+	guy_pixelfilter := spawn_dynamic_object(
+		{tex = .Squatman0, pos = {0, 0}, keep_original_dimensions = true, tags = {.Squish, .Grow}},
 	)
-	potato2.shader = .PixelFilter
+	guy_pixelfilter.shader = .PixelFilter
+	guy_bilinear.bilinear = true
+	guy_nearest := spawn_dynamic_object(
+		{
+			tex = .Squatman0,
+			pos = {500, 0},
+			keep_original_dimensions = true,
+			tags = {.Squish, .Grow},
+		},
+	)
+	guy_nearest.shader = .None
 }
 
 //game-specific update logic (run once per frame)
@@ -37,6 +54,12 @@ game_update :: proc(dt: f64) {
 		it := object_iter()
 		for obj in all_objects_with_tags(&it, .Spin) {
 			obj.rotation += dt * 20
+		}
+	}
+	{
+		it := object_iter()
+		for obj in all_objects_with_tags(&it, .Grow) {
+			obj.scale *= 1 + dt / 25
 		}
 	}
 }
@@ -96,6 +119,7 @@ ObjectTag :: enum {
 	//game-specific tags
 	Squish,
 	Spin,
+	Grow,
 }
 
 //type constraints to check at runtime (outside of Odin's type system)
