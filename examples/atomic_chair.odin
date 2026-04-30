@@ -72,13 +72,13 @@ game_start :: proc() {
 		}
 		return img_to_tilemap(tiles_buf, color_to_tile)
 	}
-	find_player_spawn :: proc(tilemap: ^Tilemap) -> TilemapTileId {
+	find_player_spawn :: proc(tilemap: ^Tilemap) -> TileId {
 		for r in 0 ..< len(tilemap) {
 			row := tilemap[r]
 			for c in 0 ..< len(row) {
 				tile := tilemap[r][c]
 				if tile.spawn == .Player {
-					return TilemapTileId{r, c}
+					return TileId{r, c}
 				}
 			}
 		}
@@ -328,7 +328,7 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 //this is the initial value loaded into the chunk
 //for the current value of the tile, use get_tile
 //called in load_tilemap_chunk
-get_starting_tile :: proc(id: TilemapTileId) -> Tile {
+get_starting_tile :: proc(id: TileId) -> Tile {
 	tilemap_r := int(id.x %% len(game.global_tilemap)) //edge wrapping
 	tilemap_c := int(id.y %% len(game.global_tilemap[0])) //edge wrapping
 	return game.global_tilemap[tilemap_r][tilemap_c]
@@ -776,7 +776,7 @@ atomic_chair_update :: proc(dt: f64) {
 			min_corner, _ := get_tilemap_corners(chunk)
 			for i in 0 ..< CHUNK_WIDTH_TILES {
 				for j in 0 ..< CHUNK_HEIGHT_TILES {
-					spawn_tile := min_corner + TilemapTileId{i, j}
+					spawn_tile := min_corner + TileId{i, j}
 					#partial switch tilemap[i][j].spawn {
 					case .Enemy:
 						for _ in 0 ..< 5 {
@@ -1009,7 +1009,7 @@ atomic_chair_update :: proc(dt: f64) {
 						case:
 							should_kill_bullet = true
 						}
-					case TilemapTileId:
+					case TileId:
 						should_kill_bullet = true
 						tile := get_tile(other_handle)
 						#partial switch TILE_PROPERTIES[tile.type].layer {

@@ -300,7 +300,7 @@ game_start :: proc(game: ^Game) {
 	game.color_to_tiletype[BACKGROUND_MAP_COLOR] = .None
 	game.color_to_spawn[CAMERA_MAP_COLOR] = .Camera
 	game.color_to_spawn[STACK_START_COLOR] = .Stack
-	load_map :: proc() -> (tilemap: Tilemap, camera_spawn, stack_start: TilemapTileId) {
+	load_map :: proc() -> (tilemap: Tilemap, camera_spawn, stack_start: TileId) {
 		MAP_DATA :: #load("map.png")
 		tiles_img := rl.LoadImageFromMemory(".png", raw_data(MAP_DATA), i32(len(MAP_DATA)))
 		tiles_buf := maps.img_to_buf(tiles_img, transpose = true)
@@ -318,7 +318,7 @@ game_start :: proc(game: ^Game) {
 		}
 		return img_to_tilemap(tiles_buf, get_tile)
 	}
-	cam_spawn_tile, stack_start_tile: TilemapTileId
+	cam_spawn_tile, stack_start_tile: TileId
 	game.global_tilemap, cam_spawn_tile, stack_start_tile = load_map()
 	game.camera_spawn_point = get_tile_center(cam_spawn_tile)
 	game.tablet_stack_bottom = get_tile_center(stack_start_tile) - {0, TILE_SIZE / 2}
@@ -443,7 +443,7 @@ game_update :: proc(game: ^Game, dt: f64) {
 					if collision.type != .start {continue}
 					switch other in collision.b {
 					case GameObjectHandle: //don't care
-					case TilemapTileId:
+					case TileId:
 						//hit the ground
 						rl.PlaySound(get_sound("tablet-thud-1.wav"))
 						rl.PlaySound(get_sound("tablet-thud-2.wav"))

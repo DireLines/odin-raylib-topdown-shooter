@@ -130,6 +130,6 @@ TILE_PROPERTIES := [TileType]TileTypeInfo {
 //this is the initial value loaded into the chunk
 //for the current value of the tile, use get_tile
 //called in load_tilemap_chunk
-get_starting_tile :: proc(id: TilemapTileId) -> Tile {
+get_starting_tile :: proc(id: TileId) -> Tile {
 	return Tile{}
 }
